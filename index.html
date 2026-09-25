@@ -936,7 +936,7 @@
 
         renderAdditionalRevenue(results,comparison);
 
-        if(comparison.items.length&&contracted){
+        if(contracted){
           contracted.open=false;
         }
 
@@ -1242,8 +1242,20 @@
       if(!comparison.items.length){
         const empty=document.createElement("div");
         empty.className="ar-empty";
-        empty.textContent="No additional revenue detected from this Toast screenshot.";
+        empty.textContent="No additional revenue detected.";
         container.appendChild(empty);
+
+        const zeroTotal=document.createElement("div");
+        zeroTotal.className="ar-total";
+
+        const zeroLabel=document.createElement("span");
+        zeroLabel.textContent="Total Additional Revenue";
+
+        const zeroValue=document.createElement("strong");
+        zeroValue.textContent=formatMoney(0);
+
+        zeroTotal.append(zeroLabel,zeroValue);
+        container.appendChild(zeroTotal);
         return;
       }
 
