@@ -1318,15 +1318,23 @@
       const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
       const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
       const total=isFlex?Math.max(0,grossTotal-fbMinimum):grossTotal;
-      const toastTotalNetSales=Number.isFinite(Number(toast.__totalNetSales))
-        ? Number(toast.__totalNetSales)
-        : null;
+      const toastTotalNetSales=
+        toast.__totalNetSales!==null &&
+        toast.__totalNetSales!==undefined &&
+        Number.isFinite(Number(toast.__totalNetSales))
+          ? Number(toast.__totalNetSales)
+          : null;
+
       const toastAdminFee=recognized.has("Admin Fee")
         ? Number(toast["Admin Fee"]||0)
         : null;
-      const contractedSubtotal=Number.isFinite(Number(financial.subtotal))
-        ? Number(financial.subtotal)
-        : null;
+
+      const contractedSubtotal=
+        financial.subtotal!==null &&
+        financial.subtotal!==undefined &&
+        Number.isFinite(Number(financial.subtotal))
+          ? Number(financial.subtotal)
+          : null;
 
       let subtotalCheck=null;
 
@@ -1335,17 +1343,21 @@
         toastAdminFee!==null &&
         contractedSubtotal!==null
       ){
-        const calculatedSubtotal=toastTotalNetSales-(toastAdminFee+total);
-        const difference=calculatedSubtotal-contractedSubtotal;
+        const expectedAR=Math.max(
+          0,
+          toastTotalNetSales-toastAdminFee-contractedSubtotal
+        );
+        const arDifference=total-expectedAR;
 
         subtotalCheck={
-          pass:Math.abs(difference)<=0.03,
+          pass:Math.abs(arDifference)<=0.03,
           toastTotalNetSales,
           toastAdminFee,
           totalAR:total,
-          calculatedSubtotal,
+          expectedAR,
           contractedSubtotal,
-          difference
+          arDifference,
+          discrepancy:Math.abs(arDifference)
         };
       }
 
@@ -1455,8 +1467,8 @@
         badge.classList.add("warn","visible");
         badge.textContent="!";
 
-        const discrepancy=Math.abs(check.difference);
-        const arDirection=check.difference<0?"up":"down";
+        const discrepancy=check.discrepancy;
+        const arDirection=check.arDifference>0?"up":"down";
         const detail="AR "+arDirection+" "+formatMoney(discrepancy);
 
         badge.dataset.tooltip="Subtotal check discrepancy\n("+detail+")";
