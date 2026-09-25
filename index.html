@@ -89,6 +89,7 @@
     .finance-value-line{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:4px}
     .finance-original{color:#73737d;font-size:.72rem;font-weight:750;text-decoration:line-through;text-decoration-thickness:1.5px}
     .finance-discounted{color:#e6e6ea;font-size:.83rem;font-weight:900}
+    .finance-incentive-note{margin-top:4px;color:#c7c7cf;font-size:.64rem;font-weight:750}
     .other-detail{margin-top:3px;color:#6f6f79;font-size:.6rem;line-height:1.3}
     .finance-summary{margin-top:11px;padding-top:10px;border-top:1px solid #29292f}
     .summary-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:3px 1px;color:#a6a6af;font-size:.7rem}
@@ -594,14 +595,14 @@
     function inferIncentiveTarget(text){
       const x=String(text||"").toLowerCase();
 
-      if(/\btopgolf\b|\bgame\s*play\b|\bgameplay\b|\bplay\b|\bgame\b/.test(x))return"Gameplay";
-      if(/\bfood\b|\bcatering\b/.test(x))return"Food";
-      if(/\bbeverage\b|\bbar\b|\bdrink\b|\balcohol\b/.test(x))return"Beverages";
-      if(/\bretail\b|\bmerch/.test(x))return"Retail";
-      if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
+      if(/\broom\s+rental\b|\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
       if(/\bequipment\b|\blimited inventory\b/.test(x))return"Equipment Rental";
       if(/\bdigital\b|\bmedia\b|\bmarketing\b/.test(x))return"Digital Media";
-      if(/\broom\s+rental\b|\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
+      if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
+      if(/\bretail\b|\bmerch/.test(x))return"Retail";
+      if(/\bbeverage\b|\bbar\b|\bdrink\b|\balcohol\b/.test(x))return"Beverages";
+      if(/\bfood\b|\bcatering\b/.test(x))return"Food";
+      if(/\btopgolf\b|\bgame\s*play\b|\bgameplay\b|\bplay\b|\bgame\b/.test(x))return"Gameplay";
 
       return"Gameplay";
     }
@@ -631,99 +632,56 @@
         body.push(line);
       }
 
-      if(!body.length)return[];
-
-      const flat=clean(body.join(" "));
-      const markers=[];
-
-      const markerPatterns=[
-        {target:"Gameplay",re:/\b(?:game\s*play|gameplay|topgolf\s+play|topgolf)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Space Rental",re:/\b(?:room\s+rental|space\s+rental)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Food",re:/\b(?:food|catering)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Beverages",re:/\b(?:beverage|bar|drink|alcohol)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Retail",re:/\b(?:retail|merch(?:andise)?)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Labor",re:/\b(?:labor|labour|staff)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Equipment Rental",re:/\b(?:equipment|limited\s+inventory)\b[^]{0,70}?\bincentive\b/gi},
-        {target:"Digital Media",re:/\b(?:digital\s+media|marketing)\b[^]{0,70}?\bincentive\b/gi}
-      ];
-
-      for(const spec of markerPatterns){
-        spec.re.lastIndex=0;
-        let match;
-
-        while((match=spec.re.exec(flat))!==null){
-          markers.push({
-            target:spec.target,
-            index:match.index,
-            end:match.index+match[0].length
-          });
-        }
-      }
-
-      markers.sort((a,b)=>a.index-b.index);
-
       const records=[];
-      const targetTotals={};
+      const seen=new Set();
 
-      for(let i=0;i<markers.length;i++){
-        const marker=markers[i];
+      for(let i=0;i<body.length;i++){
+        const line=body[i];
 
-        // Duplicate mentions of the same incentive often appear in both the
-        // Product Name and Toast Item Name columns. Let the later mention own
-        // the dollar values if the earlier one has none.
-        const nextMarker=markers[i+1];
-        const totalIndex=flat.search(/\bIncentives?\s+TOTAL\b/i);
-        let segmentEnd=nextMarker?nextMarker.index:flat.length;
+        // Section total is a reconciliation number only. It is NEVER itself
+        // an incentive row and must never be assigned to Gameplay.
+        if(/\bIncentives?\s+TOTAL\b/i.test(line))continue;
 
-        if(totalIndex>=0&&totalIndex>marker.end){
-          segmentEnd=Math.min(segmentEnd,totalIndex);
+        const hasIncentiveLabel=/\bincentive\b|\bdiscount\b|\bcredit\b/i.test(line);
+        if(!hasIncentiveLabel)continue;
+
+        // PDF.js can occasionally wrap a row. Use the current row plus up to
+        // two following lines, but stop before another incentive row or TOTAL.
+        const rowParts=[line];
+
+        for(let j=i+1;j<Math.min(body.length,i+3);j++){
+          const next=body[j];
+
+          if(/\bIncentives?\s+TOTAL\b/i.test(next))break;
+          if(/\bincentive\b|\bdiscount\b|\bcredit\b/i.test(next))break;
+
+          rowParts.push(next);
         }
 
-        const segment=flat.slice(marker.end,segmentEnd);
+        const rowText=clean(rowParts.join(" "));
+        const target=inferIncentiveTarget(rowText);
+
         const negativeAmounts=[
-          ...segment.matchAll(/USD\s*-\s*([\d,.]+)/gi)
+          ...rowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
         ].map(match=>Math.abs(parseMoney(match[1])||0))
          .filter(amount=>amount>0.004);
 
         if(!negativeAmounts.length)continue;
 
-        // Incentive rows normally contain unit discount first, then row total.
-        // The last negative amount in that row is the amount that reduces the
-        // contracted category.
+        // Incentive row format contains the per-unit discount first and the
+        // row total at the far right. Contracted revenue is reduced by the
+        // ROW TOTAL, i.e. the last negative USD amount on that row.
         const amount=negativeAmounts[negativeAmounts.length-1];
+        const key=target+"|"+amount.toFixed(2);
 
-        // If duplicate column text produces the same target repeatedly, keep
-        // the largest row total found for that target unless a distinct row
-        // with another amount appears.
-        if(!targetTotals[marker.target]){
-          targetTotals[marker.target]=[];
-        }
+        if(seen.has(key))continue;
+        seen.add(key);
 
-        if(!targetTotals[marker.target].some(v=>Math.abs(v-amount)<=0.005)){
-          targetTotals[marker.target].push(amount);
-        }
-      }
-
-      for(const [target,amounts] of Object.entries(targetTotals)){
-        for(const amount of amounts){
-          records.push({target,amount});
-        }
-      }
-
-      // Validate against the Incentives TOTAL when present. If no targeted
-      // records were recoverable, retain the old Gameplay fallback rather
-      // than silently ignoring the discount.
-      const totalMatch=flat.match(/\bIncentives?\s+TOTAL\s*:\s*USD\s*-\s*([\d,.]+)/i);
-      const sectionTotal=totalMatch?Math.abs(parseMoney(totalMatch[1])||0):0;
-      const parsedTotal=records.reduce((sum,row)=>sum+row.amount,0);
-
-      if(!records.length&&sectionTotal>0.004){
-        records.push({target:"Gameplay",amount:sectionTotal});
-      }else if(sectionTotal>0.004&&Math.abs(parsedTotal-sectionTotal)>0.03){
-        console.warn(
-          "Incentive detail does not reconcile to Incentives TOTAL",
-          {records,parsedTotal,sectionTotal}
-        );
+        records.push({
+          target,
+          amount,
+          source:rowText
+        });
       }
 
       return records;
@@ -1836,7 +1794,7 @@
         item.append(l,valueLine);
 
         const note=document.createElement("div");
-        note.className="other-detail";
+        note.className="finance-incentive-note";
         note.textContent="Incentive −"+formatMoney(Math.abs(Number(incentiveAmount||0)));
         item.appendChild(note);
       }else{
