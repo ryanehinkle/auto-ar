@@ -288,16 +288,96 @@
       const m=text.match(/\b([A-Za-z][A-Za-z ]{0,30}\s+BEO)\b/i);return m?clean(m[1]):"BEO";
     }
 
+    function extractHeaderFields(lines,text){
+      const fields={};
+
+      const beo=text.match(/\bBEO\s*#\s*:?\s*(\d+)/i);
+      if(beo)fields["BEO Number"]=beo[1];
+
+      const revisionLine=lines.find(l=>/^Revision\b/i.test(l));
+      if(revisionLine){
+        const m=revisionLine.match(/^Revision\s*:?\s*(.+?)(?=\s+(?:Date Printed|Opportunity ID|Page \d)|$)/i);
+        if(m&&clean(m[1]))fields["Revision"]=clean(m[1]);
+      }
+
+      return fields;
+    }
+
+    function extractFinancialFields(lines,fields){
+      for(const line of lines){
+        let m=line.match(/^Beverages\s+TOTAL\s*:\s*(USD\s*[\d,.]+)/i);
+        if(m)fields["Beverages Total"]=clean(m[1]);
+
+        m=line.match(/^Gameplay\s+TOTAL\s*:\s*(USD\s*[\d,.]+)/i);
+        if(m)fields["Gameplay Total"]=clean(m[1]);
+
+        m=line.match(/^Total Payments\s+(USD\s*[\d,.]+)/i);
+        if(m)fields["Total Payments"]=clean(m[1]);
+
+        m=line.match(/^Total Outstanding Balance\s+(USD\s*[\d,.]+)/i);
+        if(m)fields["Outstanding Balance"]=clean(m[1]);
+      }
+
+      const billingIndex=lines.findIndex(l=>/^Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges$/i.test(l));
+      if(billingIndex>=0&&lines[billingIndex+1]){
+        const amounts=lines[billingIndex+1].match(/USD\s*[\d,.]+/gi)||[];
+        const names=["Subtotal","Taxes","Service Charge","Admin Fee","Total Charges"];
+        names.forEach((name,index)=>{if(amounts[index])fields[name]=clean(amounts[index])});
+      }
+    }
+
+    function extractReminderFields(lines,fields){
+      const importantIndex=lines.findIndex(l=>/^IMPORTANT REMINDERS\s*:/i.test(l));
+      if(importantIndex>=0){
+        const parts=[];
+        for(let i=importantIndex+1;i<lines.length;i++){
+          if(/^INTERNAL NOTES\s*:/i.test(lines[i]))break;
+          if(/^EVENT WILL TAKE PLACE AT/i.test(lines[i]))break;
+          if(lines[i])parts.push(lines[i]);
+        }
+        if(parts.length)fields["Important Reminders"]=parts.join(" · ");
+      }
+    }
+
     function extractVenue(lines){
-      const i=lines.findIndex(l=>/EVENT WILL TAKE PLACE AT/i.test(l));if(i<0)return null;const parts=[];
-      for(let n=i+1;n<Math.min(lines.length,i+6);n++){const line=lines[n];if(/^(BEO|Revision|Date Printed|Opportunity ID|Page \d|Account:|Event Date:)/i.test(line))break;if(line.includes(":")&&parts.length)break;parts.push(line)}
-      return clean(parts.join(", "));
+      const marker=lines.findIndex(l=>/EVENT WILL TAKE PLACE AT/i.test(l));
+      if(marker<0)return null;
+
+      const windowLines=lines.slice(marker+1,marker+9);
+      let location="",street="",city="";
+
+      for(const raw of windowLines){
+        const line=clean(raw);
+
+        if(!location&&/Topgolf\s+/i.test(line)){
+          location=clean(line.split(/\s+BEO\s*#/i)[0]);
+        }
+
+        if(!street){
+          const m=line.match(/\b\d{2,6}\s+[A-Za-z0-9.' -]+?\s(?:St|Street|Ave|Avenue|Rd|Road|Ct|Court|Dr|Drive|Blvd|Boulevard|Ln|Lane|Pkwy|Parkway)\b/i);
+          if(m)street=clean(m[0]);
+        }
+
+        if(!city){
+          const m=line.match(/\b[A-Za-z .'-]+,\s*(?:[A-Za-z]{2}|[A-Za-z]{4,20})\s+\d{5}(?:-\d{4})?\b/);
+          if(m)city=clean(m[0]);
+        }
+      }
+
+      return [location,street,city].filter(Boolean).join(", ")||null;
     }
 
     function extractTitle(lines,fields){
-      const ai=lines.findIndex(l=>/^Account\s*:/i.test(l));
-      if(ai>0){for(let i=ai-1;i>=Math.max(0,ai-3);i--){const c=clean(lines[i]);if(c&&!c.includes(":")&&!/^(Internal|Kitchen|Manager).*BEO$/i.test(c)&&!/EVENT WILL TAKE PLACE/i.test(c))return c}}
-      const di=lines.findIndex(l=>/^Event Date\s*:/i.test(l));if(di>0){const c=clean(lines[di-1]);if(c&&!c.includes(":"))return c}
+      for(const line of lines){
+        const match=line.match(/^(.*?)\s+Event Date\s*:/i);
+        if(match){
+          const prefix=clean(match[1]);
+          if(prefix&&!/^(Page \d+ of \d+|Manager Catering BEO|Kitchen Catering BEO|Internal.*BEO)$/i.test(prefix)){
+            return prefix;
+          }
+        }
+      }
+
       return fields["Account"]||null;
     }
 
