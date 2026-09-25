@@ -113,7 +113,9 @@
     .ar-item.event-space-rental{border-left-color:#b79de7}.ar-item.event-space-rental .ar-item-label{color:#c3aceb}
     .ar-item.other-fees{border-left-color:#d8ae74}.ar-item.other-fees .ar-item-label{color:#dfb982}
     .ar-item.admin-fee{border-left-color:#a9adb5}.ar-item.admin-fee .ar-item-label{color:#b9bdc5}
-    .ar-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px;padding:10px 2px 1px;border-top:1px solid #303740;color:#9ad6ad;font-size:.75rem;font-weight:900}
+    .ar-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:12px 2px 2px;border-top:1px solid #303740;color:#9ad6ad;font-weight:900}
+    .ar-total span{font-size:.86rem}
+    .ar-total strong{font-size:1rem;font-weight:950;font-variant-numeric:tabular-nums}
     .ar-empty{padding:9px 1px;color:#777f88;font-size:.68rem}
     .ar-replace{display:none;margin-left:auto;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
     .ar-replace.visible{display:inline-block}
@@ -871,7 +873,7 @@
       arResults.className="ar-results";
 
       pasteZone.addEventListener("paste",(event)=>{
-        handleToastPaste(event,p,f,pasteZone,replaceButton,scanLog,arResults);
+        handleToastPaste(event,p,f,contracted,pasteZone,replaceButton,scanLog,arResults);
       });
 
       pasteZone.addEventListener("click",()=>{
@@ -898,7 +900,7 @@
     }
 
 
-    async function handleToastPaste(event,parsed,financial,pasteZone,replaceButton,scanLog,results){
+    async function handleToastPaste(event,parsed,financial,contracted,pasteZone,replaceButton,scanLog,results){
       const items=Array.from(event.clipboardData?.items||[]);
       const imageItem=items.find(item=>item.type&&item.type.startsWith("image/"));
       if(!imageItem)return;
@@ -933,6 +935,10 @@
         );
 
         renderAdditionalRevenue(results,comparison);
+
+        if(comparison.items.length&&contracted){
+          contracted.open=false;
+        }
 
         setTimeout(()=>{
           scanLog.classList.remove("visible");
@@ -1271,7 +1277,7 @@
       totalLabel.textContent="Total Additional Revenue";
 
       const totalValue=document.createElement("strong");
-      totalValue.textContent="+"+formatMoney(comparison.total);
+      totalValue.textContent=formatMoney(comparison.total);
 
       total.append(totalLabel,totalValue);
       container.appendChild(total);
