@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automatic AR</title>
+  <style>
+    :root{color-scheme:dark;--bg:#080809;--panel:#18181b;--panel2:#1d1d21;--border:#34343b;--soft:#29292f;--text:#f5f5f7;--muted:#9696a0;--blue:#5185bd;--green:#65b47e}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:radial-gradient(circle at 50% 24%,#17171a 0%,#0d0d0f 40%,#080809 74%);color:var(--text)}
+    button,input{font:inherit}button{color:inherit}#pdfInput{display:none}
+    .landing{min-height:100vh;display:grid;place-items:center;padding:24px}
+    .landing-card{width:min(92vw,520px);padding:52px 42px 42px;text-align:center;background:var(--panel);border:1px solid #3a3a40;border-radius:14px;box-shadow:0 28px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.03)}
+    .brand-mark{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 16px;border:1px solid #486f9a;border-radius:14px;background:linear-gradient(145deg,#21364d,#142333);color:#9fc4ec;font:800 1.45rem Georgia,"Times New Roman",serif;box-shadow:0 10px 28px rgba(34,80,126,.2)}
+    h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(2.6rem,8vw,4rem);line-height:.98;letter-spacing:-.045em;color:#fff;text-shadow:2px 2px 0 #2c2c31}
+    .landing-subtitle{max-width:390px;margin:14px auto 0;color:#a4a4ae;font-size:.97rem;line-height:1.55}
+    .upload-zone{margin-top:30px;padding:18px;border:1px dashed #3d4e62;border-radius:12px;background:#13161a;transition:.16s ease}
+    .upload-zone.dragging{border-color:#70a7df;background:#161d25;transform:translateY(-1px)}
+    .upload-button{width:100%;border:1px solid #6698d0;border-radius:11px;padding:15px 22px;background:var(--blue);color:#fff;font-size:1.02rem;font-weight:800;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.13);transition:.16s ease}
+    .upload-button:hover{background:#5e93cc;transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.16)}
+    .upload-hint{margin-top:10px;color:#777783;font-size:.78rem}
+    .error-card{display:none;margin-top:18px;padding:13px 14px;border:1px solid #623b3b;border-radius:9px;background:#241718;color:#e3a5a5;font-size:.84rem;line-height:1.45}.error-card.visible{display:block}
+    .app{display:none;width:min(94vw,1480px);margin:0 auto;padding:38px 0 74px}.app.active{display:block}
+    .app-header{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px}
+    .app-brand{cursor:pointer;user-select:none}.app-brand h1{font-size:clamp(2.15rem,4vw,3rem)}.app-brand p{margin-top:7px;color:var(--muted);font-size:.9rem}
+    .new-file-button{flex:0 0 auto;border:1px solid #44444b;border-radius:10px;padding:11px 15px;background:#242429;color:#d8d8de;font-weight:750;cursor:pointer}.new-file-button:hover{background:#2e2e34;border-color:#55555e}
+    .file-strip{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;padding:13px 16px;border:1px solid var(--soft);border-radius:10px;background:#121215;color:#b8b8c0;font-size:.84rem}
+    .file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5e5e9;font-weight:700}.file-meta{flex:0 0 auto;color:#7f7f89}
+    .analysis-grid{display:grid;grid-template-columns:minmax(320px,.82fr) minmax(0,1.18fr);gap:20px;align-items:start}
+    .panel{min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:13px;background:var(--panel);box-shadow:0 16px 46px rgba(0,0,0,.25)}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid #2d2d33;background:#1b1b1f}
+    .panel-title{color:#f1f1f4;font-size:.9rem;font-weight:800}.status{display:inline-flex;align-items:center;gap:7px;color:#8fbe9d;font-size:.76rem;font-weight:800}.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 12px rgba(101,180,126,.5)}
+    .terminal{min-height:320px;max-height:520px;overflow:auto;padding:18px;background:linear-gradient(rgba(81,133,189,.025) 1px,transparent 1px);background-size:100% 25px;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
+    .terminal-line{display:flex;gap:10px;min-height:25px;color:#c8c8cf;font-size:.79rem;line-height:1.65}.prompt{flex:0 0 auto;color:#6599d0;font-weight:800}.terminal-line.success .prompt{color:var(--green)}.terminal-line.muted{color:#777781}
+    .cursor{display:inline-block;width:7px;height:1.05em;margin-left:2px;vertical-align:-.12em;background:#8ab5e0;animation:blink .75s steps(1) infinite}@keyframes blink{50%{opacity:0}}
+    .summary{padding:18px}.hero-event{margin-bottom:18px;padding:18px;border:1px solid #354151;border-radius:11px;background:radial-gradient(circle at 100% 0%,rgba(81,133,189,.13),transparent 44%),#15181c}
+    .eyebrow{color:#74a5d9;font-size:.68rem;font-weight:850;letter-spacing:.09em;text-transform:uppercase}.event-title{margin-top:7px;color:#fff;font-size:clamp(1.35rem,3vw,2rem);font-weight:850;letter-spacing:-.03em;line-height:1.1}.event-subtitle{margin-top:8px;color:#9797a1;font-size:.86rem;line-height:1.45}
+    .quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.quick-card,.field{min-width:0;padding:12px 13px;border:1px solid #2d2d33;border-radius:9px;background:#151519}
+    .quick-label,.field-label{color:#7f7f89;font-size:.66rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase}.quick-value,.field-value{margin-top:5px;overflow-wrap:anywhere;color:#e8e8ec;font-size:.88rem;font-weight:720;line-height:1.35}
+    .details{grid-column:1/-1;margin-top:20px}.details-body{padding:18px}.section-block+.section-block{margin-top:22px;padding-top:22px;border-top:1px solid #29292f}.section-heading{margin-bottom:12px;color:#e9e9ed;font-size:.93rem;font-weight:850}
+    .field-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.field{padding:11px 12px;border-color:#2b2b31}.field-value{color:#dedee4;font-size:.82rem;font-weight:400}
+    .raw-toggle{display:inline-flex;align-items:center;gap:8px;border:0;padding:0;background:transparent;color:#8faed0;font-size:.78rem;font-weight:750;cursor:pointer}.raw-text{display:none;max-height:460px;overflow:auto;margin-top:12px;padding:14px;border:1px solid #29292f;border-radius:9px;background:#101013;color:#9b9ba5;font:.72rem/1.55 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap;word-break:break-word}.raw-text.open{display:block}
+    .reveal{opacity:0;transform:translateY(7px);transition:opacity .28s ease,transform .28s ease}.reveal.show{opacity:1;transform:translateY(0)}
+    @media(max-width:1000px){.analysis-grid{grid-template-columns:1fr}.details{grid-column:auto}.field-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:700px){.app{width:min(92vw,1480px);padding-top:26px}.app-header{align-items:flex-start;flex-direction:column}.field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid{grid-template-columns:1fr}.landing-card{padding:42px 24px 30px}}
+    @media(max-width:430px){.field-grid{grid-template-columns:1fr}.file-strip{align-items:flex-start;flex-direction:column;gap:6px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <input id="pdfInput" type="file" accept="application/pdf,.pdf">
+
+  <main id="landing" class="landing">
+    <section class="landing-card">
+      <div class="brand-mark">AR</div>
+      <h1>Automatic AR</h1>
+      <p class="landing-subtitle">Upload a Topgolf BEO and Automatic AR will read the document, identify the event, and surface everything it can understand.</p>
+      <div id="uploadZone" class="upload-zone">
+        <button id="uploadButton" class="upload-button" type="button">Upload BEO</button>
+        <p class="upload-hint">PDF only · or drag and drop a BEO here</p>
+      </div>
+      <div id="landingError" class="error-card"></div>
+    </section>
+  </main>
+
+  <main id="app" class="app">
+    <header class="app-header">
+      <div id="appBrand" class="app-brand" role="button" tabindex="0" title="Return home">
+        <h1>Automatic AR</h1>
+        <p>BEO intelligence readout</p>
+      </div>
+      <button id="newFileButton" class="new-file-button" type="button">Upload another BEO</button>
+    </header>
+
+    <div class="file-strip">
+      <span id="fileName" class="file-name">—</span>
+      <span id="fileMeta" class="file-meta">—</span>
+    </div>
+
+    <div class="analysis-grid">
+      <section class="panel">
+        <header class="panel-header"><span class="panel-title">AR scan</span><span id="status" class="status"><span class="status-dot"></span> Reading</span></header>
+        <div id="terminal" class="terminal" aria-live="polite"></div>
+      </section>
+
+      <section class="panel reveal" id="summaryPanel">
+        <header class="panel-header"><span class="panel-title">Event summary</span><span id="beoBadge" class="status">BEO</span></header>
+        <div class="summary">
+          <div class="hero-event">
+            <div class="eyebrow">Detected event</div>
+            <div id="eventTitle" class="event-title">—</div>
+            <div id="eventSubtitle" class="event-subtitle">—</div>
+          </div>
+          <div id="quickGrid" class="quick-grid"></div>
+        </div>
+      </section>
+
+      <section class="panel details reveal" id="detailsPanel">
+        <header class="panel-header"><span class="panel-title">Everything detected</span><span id="fieldCount" class="status">0 fields</span></header>
+        <div class="details-body">
+          <div id="detailsContent"></div>
+          <div class="section-block">
+            <button id="rawToggle" class="raw-toggle" type="button">▸ Show extracted PDF text</button>
+            <pre id="rawText" class="raw-text"></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+
+    const $=(id)=>document.getElementById(id);
+    const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),summaryPanel=$("summaryPanel"),detailsPanel=$("detailsPanel"),eventTitle=$("eventTitle"),eventSubtitle=$("eventSubtitle"),quickGrid=$("quickGrid"),detailsContent=$("detailsContent"),fieldCount=$("fieldCount"),beoBadge=$("beoBadge"),rawToggle=$("rawToggle"),rawText=$("rawText");
+    const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const LABELS=["BEO #","BEO#","Revision","Date Printed","Opportunity ID","Event Date","Event Day of Week","Event Time","Event Status","Event Guest Count","Event Sales Manager","Event Manager","Event Card#/Party ID","Event Card #/Party ID","Golf Bays","Bartenders","Bay Validation","Buffet Attendant(s)","Catering Location","Booking Type","Event Ambassador(s)","Account","Contact","Email","Phone"];
+    const KNOWN=[
+      ["BEO Number",["BEO #","BEO#"]],["Revision",["Revision"]],["Date Printed",["Date Printed"]],["Opportunity ID",["Opportunity ID"]],
+      ["Account",["Account"]],["Contact",["Contact"]],["Email",["Email"]],["Phone",["Phone"]],
+      ["Event Date",["Event Date"]],["Event Day",["Event Day of Week"]],["Event Time",["Event Time"]],["Event Status",["Event Status"]],["Guest Count",["Event Guest Count"]],
+      ["Sales Manager",["Event Sales Manager"]],["Event Manager",["Event Manager"]],["Event Card / Party ID",["Event Card#/Party ID","Event Card #/Party ID"]],
+      ["Golf Bays",["Golf Bays"]],["Bay Validation",["Bay Validation"]],["Booking Type",["Booking Type"]],["Catering Location",["Catering Location"]],
+      ["Bartenders",["Bartenders"]],["Buffet Attendants",["Buffet Attendant(s)"]],["Event Ambassadors",["Event Ambassador(s)"]]
+    ];
+    const SECTIONS=[
+      ["Event",["Event Date","Event Day","Event Time","Event Status","Guest Count","Booking Type","Golf Bays","Bay Validation","Catering Location"]],
+      ["Client",["Account","Contact","Email","Phone"]],
+      ["Team",["Sales Manager","Event Manager","Bartenders","Buffet Attendants","Event Ambassadors"]],
+      ["BEO",["BEO Number","Revision","Date Printed","Opportunity ID","Event Card / Party ID","BEO Type","Page Count","Venue"]]
+    ];
+
+    uploadButton.addEventListener("click",()=>pdfInput.click());
+    newFileButton.addEventListener("click",()=>pdfInput.click());
+    pdfInput.addEventListener("change",()=>{const f=pdfInput.files&&pdfInput.files[0];if(f)processFile(f);pdfInput.value=""});
+    appBrand.addEventListener("click",()=>location.reload());
+    appBrand.addEventListener("keydown",(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();location.reload()}});
+
+    ["dragenter","dragover"].forEach(n=>uploadZone.addEventListener(n,e=>{e.preventDefault();uploadZone.classList.add("dragging")}));
+    ["dragleave","drop"].forEach(n=>uploadZone.addEventListener(n,e=>{e.preventDefault();uploadZone.classList.remove("dragging")}));
+    uploadZone.addEventListener("drop",e=>{const f=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]).find(x=>x.type==="application/pdf"||x.name.toLowerCase().endsWith(".pdf"));if(f)processFile(f);else showError("Please drop a PDF BEO.")});
+    rawToggle.addEventListener("click",()=>{const open=rawText.classList.toggle("open");rawToggle.textContent=open?"▾ Hide extracted PDF text":"▸ Show extracted PDF text"});
+
+    function showError(msg){landingError.textContent=msg;landingError.classList.add("visible")}
+    function clearError(){landingError.textContent="";landingError.classList.remove("visible")}
+
+    async function processFile(file){
+      clearError();
+      if(file.type!=="application/pdf"&&!file.name.toLowerCase().endsWith(".pdf")){showError("Automatic AR currently reads PDF BEOs.");return}
+      landing.style.display="none";app.classList.add("active");summaryPanel.classList.remove("show");detailsPanel.classList.remove("show");terminal.replaceChildren();quickGrid.replaceChildren();detailsContent.replaceChildren();rawText.classList.remove("open");rawToggle.textContent="▸ Show extracted PDF text";status.innerHTML='<span class="status-dot"></span> Reading';
+      fileName.textContent=file.name;fileMeta.textContent=formatBytes(file.size);
+
+      try{
+        await terminalMessage("Loading PDF bytes…");
+        const bytes=new Uint8Array(await file.arrayBuffer());
+        await terminalMessage("Opening document and mapping pages…");
+        const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+        fileMeta.textContent=formatBytes(file.size)+" · "+pdf.numPages+(pdf.numPages===1?" page":" pages");
+
+        const pageRecords=[];
+        for(let n=1;n<=pdf.numPages;n++){
+          await terminalMessage("Reading page "+n+" of "+pdf.numPages+"…","muted");
+          const page=await pdf.getPage(n),lines=await extractLines(page);
+          pageRecords.push({pageNumber:n,lines,text:lines.join("\n")});
+        }
+
+        const fullText=pageRecords.map(p=>p.text).join("\n\n"),allLines=pageRecords.flatMap(p=>p.lines);
+        await terminalMessage("Detecting BEO structure and event fields…");
+        const parsed=parseBeo(allLines,fullText,pdf.numPages);
+        await terminalMessage("Identified "+parsed.type+" · "+parsed.detectedCount+" fields","success");
+
+        const readout=[["Event",parsed.title],["Account",parsed.fields["Account"]],["Date",parsed.fields["Event Date"]],["Time",parsed.fields["Event Time"]],["Guests",parsed.fields["Guest Count"]],["BEO",parsed.fields["BEO Number"]]].filter(x=>x[1]);
+        for(const pair of readout)await terminalMessage(pair[0]+": "+pair[1],"success");
+        await terminalMessage("AR readout complete.","success");
+
+        renderSummary(parsed);renderDetails(parsed);rawText.textContent=fullText||"No extractable text found.";
+        status.innerHTML='<span class="status-dot"></span> Complete';summaryPanel.classList.add("show");await delay(reduced?0:220);detailsPanel.classList.add("show");
+      }catch(err){
+        console.error(err);status.innerHTML='<span class="status-dot"></span> Error';await terminalMessage("Could not read this PDF.","muted");await terminalMessage("If it is image-only, there may be no embedded text to extract.","muted");
+      }
+    }
+
+    async function extractLines(page){
+      const content=await page.getTextContent();
+      const items=content.items.filter(i=>i.str&&i.str.trim()).map(i=>({text:i.str.trim(),x:(i.transform&&i.transform[4])||0,y:(i.transform&&i.transform[5])||0,width:i.width||0}));
+      const rows=[];
+      for(const item of items){let row=rows.find(r=>Math.abs(r.y-item.y)<=2.25);if(!row){row={y:item.y,items:[]};rows.push(row)}row.items.push(item)}
+      rows.sort((a,b)=>b.y-a.y);
+      return rows.map(row=>{row.items.sort((a,b)=>a.x-b.x);let line="",right=null;for(const item of row.items){if(right!==null)line+=item.x-right>8?"  ":" ";line+=item.text;right=item.x+item.width}return clean(line)}).filter(Boolean);
+    }
+
+    function parseBeo(lines,text,pages){
+      const fields={},pairs=extractKnownPairs(lines);
+      for(const item of KNOWN){const name=item[0],aliases=item[1];let value=null;for(const alias of aliases){value=pairs.get(norm(alias))||null;if(value)break}if(!value)value=findField(text,aliases);if(value)fields[name]=value}
+      const type=detectType(text);fields["BEO Type"]=type;fields["Page Count"]=String(pages);
+      const venue=extractVenue(lines);if(venue)fields["Venue"]=venue;
+      const title=extractTitle(lines,fields),generic=extractGeneric(lines,pairs),extras={};
+      for(const pair of generic){const label=pair[0],value=pair[1],known=KNOWN.some(k=>k[1].some(a=>norm(a)===norm(label)));if(!known&&value&&value.length<=220)extras[label]=value}
+      return{title:title||fields["Account"]||"Event detected",type,fields,extras,detectedCount:Object.values(fields).filter(Boolean).length+Object.values(extras).filter(Boolean).length};
+    }
+
+    function extractKnownPairs(lines){
+      const map=new Map(),alts=LABELS.map(esc).sort((a,b)=>b.length-a.length).join("|"),re=new RegExp("("+alts+")\\s*:\\s*(.*?)(?=(?:"+alts+")\\s*:|$)","gi");
+      for(const line of lines){let m;while((m=re.exec(line))!==null){const key=norm(m[1]),value=clean(m[2]);if(value&&!map.has(key))map.set(key,value)}}
+      return map;
+    }
+
+    function extractGeneric(lines,known){
+      const map=new Map(known);
+      for(const line of lines){const m=line.match(/^([A-Za-z][A-Za-z0-9 #&/().'-]{1,44})\s*:\s*(.+)$/);if(!m)continue;const label=clean(m[1]),value=clean(m[2]);if(!label||!value||value.length>240)continue;const key=norm(label);if(!map.has(key))map.set(key,value)}
+      return Array.from(map.entries()).map(x=>[pretty(x[0]),x[1]]);
+    }
+
+    function findField(text,aliases){
+      const stop=LABELS.map(esc).join("|");
+      for(const alias of aliases){const re=new RegExp(esc(alias)+"\\s*:\\s*(.*?)(?=\\s+(?:"+stop+")\\s*:|\\n|$)","i"),m=text.match(re),v=clean((m&&m[1])||"");if(v)return v}
+      return null;
+    }
+
+    function detectType(text){
+      if(/Internal\s+(?:EA\s+|Catering\s+)?BEO/i.test(text))return"Internal BEO";
+      if(/Kitchen\s+(?:Catering\s+)?BEO/i.test(text))return"Kitchen BEO";
+      if(/Manager\s+(?:Catering\s+)?BEO/i.test(text))return"Manager BEO";
+      const m=text.match(/\b([A-Za-z][A-Za-z ]{0,30}\s+BEO)\b/i);return m?clean(m[1]):"BEO";
+    }
+
+    function extractVenue(lines){
+      const i=lines.findIndex(l=>/EVENT WILL TAKE PLACE AT/i.test(l));if(i<0)return null;const parts=[];
+      for(let n=i+1;n<Math.min(lines.length,i+6);n++){const line=lines[n];if(/^(BEO|Revision|Date Printed|Opportunity ID|Page \d|Account:|Event Date:)/i.test(line))break;if(line.includes(":")&&parts.length)break;parts.push(line)}
+      return clean(parts.join(", "));
+    }
+
+    function extractTitle(lines,fields){
+      const ai=lines.findIndex(l=>/^Account\s*:/i.test(l));
+      if(ai>0){for(let i=ai-1;i>=Math.max(0,ai-3);i--){const c=clean(lines[i]);if(c&&!c.includes(":")&&!/^(Internal|Kitchen|Manager).*BEO$/i.test(c)&&!/EVENT WILL TAKE PLACE/i.test(c))return c}}
+      const di=lines.findIndex(l=>/^Event Date\s*:/i.test(l));if(di>0){const c=clean(lines[di-1]);if(c&&!c.includes(":"))return c}
+      return fields["Account"]||null;
+    }
+
+    function renderSummary(parsed){
+      eventTitle.textContent=parsed.title;beoBadge.textContent=parsed.type;
+      eventSubtitle.textContent=[parsed.fields["Account"],parsed.fields["Event Date"],parsed.fields["Event Time"]].filter(Boolean).join(" · ")||parsed.type;
+      const list=[["BEO #",parsed.fields["BEO Number"]],["Date",parsed.fields["Event Date"]],["Time",parsed.fields["Event Time"]],["Guests",parsed.fields["Guest Count"]],["Contact",parsed.fields["Contact"]],["Event Manager",parsed.fields["Event Manager"]],["Bays",parsed.fields["Golf Bays"]],["Status",parsed.fields["Event Status"]]];
+      quickGrid.replaceChildren();for(const item of list){if(!item[1])continue;const card=document.createElement("div");card.className="quick-card";const l=document.createElement("div");l.className="quick-label";l.textContent=item[0];const v=document.createElement("div");v.className="quick-value";v.textContent=item[1];card.append(l,v);quickGrid.appendChild(card)}
+    }
+
+    function renderDetails(parsed){
+      detailsContent.replaceChildren();let shown=0;
+      for(const section of SECTIONS){const entries=section[1].map(k=>[k,parsed.fields[k]]).filter(x=>x[1]);if(!entries.length)continue;shown+=entries.length;detailsContent.appendChild(makeSection(section[0],entries))}
+      const extra=Object.entries(parsed.extras).filter(x=>x[1]).sort((a,b)=>a[0].localeCompare(b[0]));if(extra.length){shown+=extra.length;detailsContent.appendChild(makeSection("Other detected fields",extra))}
+      fieldCount.textContent=shown+(shown===1?" field":" fields");
+    }
+
+    function makeSection(title,entries){
+      const block=document.createElement("section");block.className="section-block";const h=document.createElement("h2");h.className="section-heading";h.textContent=title;const grid=document.createElement("div");grid.className="field-grid";
+      for(const item of entries){const field=document.createElement("div");field.className="field";const l=document.createElement("div");l.className="field-label";l.textContent=item[0];const v=document.createElement("div");v.className="field-value";v.textContent=item[1];field.append(l,v);grid.appendChild(field)}
+      block.append(h,grid);return block;
+    }
+
+    async function terminalMessage(message,tone=""){
+      const line=document.createElement("div");line.className="terminal-line"+(tone?" "+tone:"");const p=document.createElement("span");p.className="prompt";p.textContent=tone==="success"?"✓":">";const content=document.createElement("span");line.append(p,content);terminal.appendChild(line);
+      if(reduced){content.textContent=message;return}
+      const cursor=document.createElement("span");cursor.className="cursor";content.appendChild(cursor);
+      for(let i=0;i<message.length;i++){cursor.insertAdjacentText("beforebegin",message[i]);terminal.scrollTop=terminal.scrollHeight;await delay(7+Math.random()*8)}
+      cursor.remove();await delay(38);
+    }
+
+    function clean(v){return String(v||"").replace(/\s+/g," ").replace(/^[-–—|]+|[-–—|]+$/g,"").trim()}
+    function norm(v){return clean(v).replace(/\s+/g," ").replace(/\s*#\s*/g," #").toLowerCase()}
+    function pretty(v){return v.replace(/\b\w/g,l=>l.toUpperCase()).replace(/\bId\b/g,"ID").replace(/\bBeo\b/g,"BEO")}
+    function esc(v){return v.replace(/[-\/\\^$*+?.()|[\]{}]/g,"\\$&")}
+    function formatBytes(b){if(!Number.isFinite(b)||b<=0)return"PDF";if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB"}
+    function delay(ms){return new Promise(r=>setTimeout(r,ms))}
+  </script>
+</body>
+</html>
