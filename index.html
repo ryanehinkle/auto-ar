@@ -705,6 +705,14 @@
       return records;
     }
 
+    function isEventNABeverageRow(text){
+      return /\bevent\s+n\s*\/?\s*a\s+(?:bev|beverage|beverages)\b/i.test(String(text||""));
+    }
+
+    function isEventLBWRow(text){
+      return /\bevent\s+(?:l\s*\/?\s*b\s*\/?\s*w|lbw)\b/i.test(String(text||""));
+    }
+
     function hasNABeverageText(text){
       return(
         /\bn\s*\/\s*a\b/i.test(text) ||
@@ -810,6 +818,37 @@
         detected[category]=true;
       }
 
+      const contractedBeverageSplit={
+        found:false,
+        na:0,
+        lbw:0
+      };
+
+      for(const item of lineItems){
+        if(item.section!=="Beverages")continue;
+
+        const isToastNA=isEventNABeverageRow(item.line);
+        const isToastLBW=isEventLBWRow(item.line);
+
+        if(!isToastNA&&!isToastLBW)continue;
+
+        contractedBeverageSplit.found=true;
+
+        // For these explicitly labeled Toast rows, only the far-right printed
+        // row total is contracted revenue. A missing printed total means $0.
+        const rowTotal=item.printedTotal!==null
+          ? Math.max(0,Number(item.printedTotal)||0)
+          : 0;
+
+        if(isToastNA){
+          contractedBeverageSplit.na+=rowTotal;
+        }
+
+        if(isToastLBW){
+          contractedBeverageSplit.lbw+=rowTotal;
+        }
+      }
+
       const splitFromParent={Food:0,Beverages:0};
       let youthFood=0;
 
@@ -892,6 +931,23 @@
             categories[parent]=0;
             delete detected[parent];
           }
+        }
+      }
+
+      if(contractedBeverageSplit.found&&!tags.includes("Youth")){
+        categories.NA=contractedBeverageSplit.na;
+        categories.Beverages=contractedBeverageSplit.lbw;
+
+        if(categories.NA>0.004){
+          detected.NA=true;
+        }else{
+          delete detected.NA;
+        }
+
+        if(categories.Beverages>0.004){
+          detected.Beverages=true;
+        }else{
+          delete detected.Beverages;
         }
       }
 
