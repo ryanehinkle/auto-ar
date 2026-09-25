@@ -73,16 +73,17 @@
     .event-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
     .meta-chip{padding:5px 7px;border:1px solid #303038;border-radius:7px;background:#141418;color:#b6b6bf;font-size:.7rem;font-weight:700}
     .finance-wrap{margin-top:14px;padding-top:13px;border-top:1px solid #29292f}
-    .finance-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px;color:#888892;font-size:.66rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .finance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-    .finance-item{min-width:0;padding:8px 9px;border:1px solid #2b2b31;border-radius:8px;background:#151519}
+    .finance-item{min-width:0;padding:9px 10px;border:1px solid #2b2b31;border-radius:8px;background:#151519}
     .finance-label{color:#74747e;font-size:.59rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
-    .finance-value{margin-top:4px;color:#e6e6ea;font-size:.8rem;font-weight:800}
-    .finance-item.total{border-color:#3d4d60;background:#151a20}
-    .finance-item.total .finance-value{color:#9fc4ec}
+    .finance-value{margin-top:4px;color:#e6e6ea;font-size:.83rem;font-weight:850}
     .other-detail{margin-top:3px;color:#6f6f79;font-size:.6rem;line-height:1.3}
-    .preview-button{width:100%;margin-top:13px;border:1px solid #414149;border-radius:8px;padding:9px 10px;background:#232328;color:#d8d8de;font-weight:750;font-size:.76rem;cursor:pointer}
-    .preview-button:hover{background:#2c2c32}
+    .finance-summary{margin-top:11px;padding-top:10px;border-top:1px solid #29292f}
+    .summary-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:3px 1px;color:#a6a6af;font-size:.7rem}
+    .summary-row span:first-child{font-weight:700}
+    .summary-row strong{color:#dddde2;font-size:.76rem;font-weight:850;font-variant-numeric:tabular-nums}
+    .summary-row.total{margin-top:4px;padding-top:8px;border-top:1px solid #32323a;color:#9fc4ec}
+    .summary-row.total span:first-child,.summary-row.total strong{color:#9fc4ec;font-weight:900}
     .empty-events{display:none;padding:28px;border:1px dashed #34343b;border-radius:12px;color:#85858f;text-align:center}
     .pdf-modal{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(3,3,5,.76);backdrop-filter:blur(8px)}
     .pdf-modal.open{display:flex}
@@ -672,40 +673,71 @@
 
       const finance=document.createElement("div");
       finance.className="finance-wrap";
-      const financeTitle=document.createElement("div");
-      financeTitle.className="finance-title";
-      financeTitle.innerHTML="<span>Financials</span><span>"+(f.totalCharges!==null?formatMoney(f.totalCharges):"")+"</span>";
 
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      ["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Event Space Rental","Other Fees"].forEach(label=>{
-        if(!f.detected[label]&&!(label==="Other Fees"&&f.categories[label]>0))return;
-        financeGrid.appendChild(makeFinanceItem(label,formatMoney(f.categories[label]),false,label==="Other Fees"?f.otherBreakdown.join(" · "):""));
+      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Event Space Rental","Other Fees"];
+      const revenueItems=revenueOrder
+        .map(label=>({
+          label,
+          value:Number(f.categories[label]||0),
+          detail:label==="Other Fees"?f.otherBreakdown.join(" · "):""
+        }))
+        .filter(item=>item.value>0.004)
+        .sort((a,b)=>b.value-a.value);
+
+      for(const item of revenueItems){
+        financeGrid.appendChild(
+          makeFinanceItem(item.label,formatMoney(item.value),false,item.detail)
+        );
+      }
+
+      if(revenueItems.length){
+        finance.appendChild(financeGrid);
+      }
+
+      const summary=document.createElement("div");
+      summary.className="finance-summary";
+
+      [
+        ["Subtotal",f.subtotal,false],
+        ["Service Charge",f.serviceCharge,false],
+        ["Admin Fee",f.adminFee,false],
+        ["Taxes",f.taxes,false],
+        ["Payments",f.payments,false],
+        ["Outstanding",f.outstanding,false],
+        ["Total Charges",f.totalCharges,true]
+      ].forEach(row=>{
+        if(row[1]===null||Math.abs(row[1])<0.005)return;
+
+        const line=document.createElement("div");
+        line.className="summary-row"+(row[2]?" total":"");
+
+        const label=document.createElement("span");
+        label.textContent=row[0];
+
+        const value=document.createElement("strong");
+        value.textContent=formatMoney(row[1]);
+
+        line.append(label,value);
+        summary.appendChild(line);
       });
 
-      [["Subtotal",f.subtotal],["Service Charge",f.serviceCharge],["Admin Fee",f.adminFee],["Taxes",f.taxes],["Total Charges",f.totalCharges],["Payments",f.payments],["Outstanding",f.outstanding]].forEach(pair=>{
-        if(pair[1]===null)return;
-        financeGrid.appendChild(makeFinanceItem(pair[0],formatMoney(pair[1]),pair[0]==="Total Charges",""));
-      });
+      if(summary.children.length){
+        finance.appendChild(summary);
+      }
 
-      finance.append(financeTitle,financeGrid);
-
-      const button=document.createElement("button");
-      button.type="button";
-      button.className="preview-button";
-      button.textContent="Preview event BEO";
-      button.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
       preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
 
-      body.append(kicker,name,meta,finance,button);
+      body.append(kicker,name,meta,finance);
       card.append(preview,body);
       return card;
     }
 
     function makeFinanceItem(label,value,total,detail){
       const item=document.createElement("div");
-      item.className="finance-item"+(total?" total":"");
+      item.className="finance-item";
       const l=document.createElement("div");
       l.className="finance-label";
       l.textContent=label;
