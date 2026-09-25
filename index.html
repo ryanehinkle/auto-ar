@@ -1349,6 +1349,59 @@
       }
     }
 
+    function extractToastLBW(source,flat){
+      const alcohol={Beer:null,Liquor:null,Wine:null};
+      const rows=String(source||"").split(/\r?\n/).map(clean).filter(Boolean);
+
+      for(const label of Object.keys(alcohol)){
+        // First choice: find the actual OCR row, allowing harmless leading OCR noise.
+        for(let i=0;i<rows.length;i++){
+          if(!new RegExp("\\b"+label+"\\b","i").test(rows[i]))continue;
+
+          const candidates=[
+            rows[i],
+            clean(rows[i]+" "+(rows[i+1]||"")),
+            clean((rows[i-1]||"")+" "+rows[i]+" "+(rows[i+1]||""))
+          ];
+
+          for(const candidate of candidates){
+            const amounts=extractToastAmounts(candidate);
+            if(amounts.length){
+              alcohol[label]=amounts[0];
+              break;
+            }
+          }
+
+          if(alcohol[label]!==null)break;
+        }
+
+        if(alcohol[label]!==null)continue;
+
+        // Fallback for OCR that flattened the visual row structure.
+        // Start exactly at this category label and inspect only a short window
+        // after it, so Beer/Liquor/Wine cannot steal values from one another.
+        const re=new RegExp("\\b"+label+"\\b","i");
+        const match=re.exec(flat);
+
+        if(match){
+          const segment=flat.slice(match.index,Math.min(flat.length,match.index+180));
+          const amounts=extractToastAmounts(segment);
+
+          if(amounts.length){
+            alcohol[label]=amounts[0];
+          }
+        }
+      }
+
+      const found=Object.values(alcohol).filter(value=>value!==null);
+
+      return{
+        values:alcohol,
+        count:found.length,
+        total:found.reduce((sum,value)=>sum+value,0)
+      };
+    }
+
     function parseToastSales(text){
       const totals={
         Food:0,
@@ -1436,8 +1489,6 @@
       // Fallback for OCR engines that preserve each table row cleanly.
       const rows=source.split(/\r?\n/).map(clean).filter(Boolean);
       let totalNetSales=null;
-      let rowLBW=0;
-      let rowLBWCount=0;
 
       for(const row of rows){
         if(/^tota(?:l|1|!)(?:\s|$)/i.test(row)){
@@ -1454,12 +1505,7 @@
         if(!amounts.length)continue;
 
         if(category==="LBW"){
-          // Toast splits alcohol into Beer, Liquor, and Wine rows.
-          // Sum EVERY validated row, then use that complete sum instead of
-          // any partial LBW amount recovered by the flattened OCR pass.
-          rowLBW+=amounts[0];
-          rowLBWCount++;
-          recognized.add("LBW");
+          // Beer/Liquor/Wine are handled together by extractToastLBW below.
           continue;
         }
 
@@ -1470,8 +1516,10 @@
         recognized.add(category);
       }
 
-      if(rowLBWCount>0){
-        totals.LBW=rowLBW;
+      const lbw=extractToastLBW(source,flat);
+
+      if(lbw.count>0){
+        totals.LBW=lbw.total;
         recognized.add("LBW");
       }
 
@@ -1506,7 +1554,7 @@
     function mapToastCategory(row){
       const x=row.toLowerCase().replace(/\s+/g," ").trim();
 
-      if(/^beer\b/.test(x)||/^liquor\b/.test(x)||/^wine\b/.test(x))return"LBW";
+      if(/\bbeer\b/.test(x)||/\bliquor\b/.test(x)||/\bwine\b/.test(x))return"LBW";
       if(/^n\/?a\s*bev\b|^na\s*bev\b|^non[- ]?alcoholic\b/.test(x))return"NA";
       if(/^food\b/.test(x))return"Food";
       if(/^event\s+drink\s+package\b|^drink\s+package\b|^beverage\s+package\b/.test(x))return"Beverages";
