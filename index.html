@@ -934,6 +934,10 @@
             : "No additional revenue found."
         );
 
+        if(comparison.recognizedCount===0){
+          throw new Error("No Toast rows passed currency validation");
+        }
+
         renderAdditionalRevenue(results,comparison);
 
         if(contracted){
@@ -1093,6 +1097,7 @@
         "Other Fees":0,
         "Admin Fee":0
       };
+      const recognized=new Set();
 
       const source=String(text||"");
       const flat=source
@@ -1147,10 +1152,13 @@
 
         if(hit.label==="Beer"||hit.label==="Liquor"||hit.label==="Wine"){
           totals.LBW+=netSales;
+          recognized.add("LBW");
         }else if(hit.label==="Events Fees"||hit.label==="Coach"||hit.label==="Marketing Partnerships"){
           totals["Other Fees"]+=netSales;
+          recognized.add("Other Fees");
         }else{
           totals[hit.label]+=netSales;
+          recognized.add(hit.label);
         }
       }
 
@@ -1167,8 +1175,10 @@
         if(Math.abs(totals[category]||0)<0.005){
           totals[category]+=amounts[0];
         }
+        recognized.add(category);
       }
 
+      totals.__recognized=recognized;
       return totals;
     }
 
@@ -1194,13 +1204,39 @@
     }
 
     function extractToastAmounts(row){
-      const matches=[
-        ...row.matchAll(/(?:\$|USD\s*)?\s*(-?\d[\d,]*\.\d{2})/gi)
-      ];
+      // Every Toast money cell visibly begins with "$". OCR commonly confuses
+      // that symbol with "S" or "5" (for example "$68.27" -> "568.27").
+      // Treat the FIRST character as the currency marker and never as part of
+      // the numeric value.
+      const rawTokens=[
+        ...String(row||"").matchAll(/(?:^|\s)([$S5])\s*(-?\d[\d,]*\.\d{2})(?=\s|$)/gi)
+      ].map(match=>({
+        marker:match[1],
+        value:parseMoney(match[2])
+      })).filter(token=>token.value!==null);
 
-      return matches
-        .map(match=>parseMoney(match[1]))
-        .filter(value=>value!==null);
+      if(rawTokens.length<3)return[];
+
+      // A Toast category row has Net Sales, Discounts, Gross Sales.
+      // Require those three columns to reconcile before accepting the row.
+      for(let i=0;i<=rawTokens.length-3;i++){
+        const net=rawTokens[i].value;
+        const discounts=rawTokens[i+1].value;
+        const gross=rawTokens[i+2].value;
+
+        if(
+          Number.isFinite(net)&&
+          Number.isFinite(discounts)&&
+          Number.isFinite(gross)&&
+          Math.abs((net+discounts)-gross)<=0.03
+        ){
+          return[net,discounts,gross];
+        }
+      }
+
+      // Fail closed: if the Toast row does not mathematically reconcile,
+      // do not use any dollar value from it for AR.
+      return[];
     }
 
     function compareAdditionalRevenue(toast,financial){
@@ -1218,7 +1254,12 @@
 
       const items=[];
 
-      for(const label of ["Food","LBW","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees","Admin Fee"]){
+      const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
+      const expectedLabels=["Food","LBW","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees","Admin Fee"];
+
+      for(const label of expectedLabels){
+        if(!recognized.has(label))continue;
+
         const actual=Number(toast[label]||0);
         const base=Number(contracted[label]||0);
         const additional=Math.max(0,actual-base);
@@ -1232,7 +1273,8 @@
 
       return{
         items,
-        total:items.reduce((sum,item)=>sum+item.additional,0)
+        total:items.reduce((sum,item)=>sum+item.additional,0),
+        recognizedCount:recognized.size
       };
     }
 
