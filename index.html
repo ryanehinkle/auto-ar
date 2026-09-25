@@ -209,7 +209,6 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
   <script type="module">
 
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
@@ -981,8 +980,53 @@
       return canvas;
     }
 
+    async function ensureTesseract(){
+      if(window.Tesseract)return window.Tesseract;
+
+      const sources=[
+        "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js",
+        "https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js"
+      ];
+
+      let lastError=null;
+
+      for(const src of sources){
+        try{
+          await new Promise((resolve,reject)=>{
+            const existing=document.querySelector('script[data-tesseract-source="'+src+'"]');
+
+            if(existing){
+              if(window.Tesseract){
+                resolve();
+                return;
+              }
+
+              existing.addEventListener("load",resolve,{once:true});
+              existing.addEventListener("error",reject,{once:true});
+              return;
+            }
+
+            const script=document.createElement("script");
+            script.src=src;
+            script.async=true;
+            script.dataset.tesseractSource=src;
+            script.onload=resolve;
+            script.onerror=()=>reject(new Error("Failed to load "+src));
+            document.head.appendChild(script);
+          });
+
+          if(window.Tesseract)return window.Tesseract;
+        }catch(error){
+          lastError=error;
+          console.warn("Tesseract source failed:",src,error);
+        }
+      }
+
+      throw lastError||new Error("Tesseract did not load");
+    }
+
     async function recognizeToastImage(canvas,scanLog){
-      if(!window.Tesseract)throw new Error("Tesseract did not load");
+      const Tesseract=await ensureTesseract();
 
       const logger=(message)=>{
         if(message.status==="recognizing text"&&Number.isFinite(message.progress)){
@@ -994,10 +1038,10 @@
       let worker=null;
 
       try{
-        worker=await window.Tesseract.createWorker("eng",1,{
+        worker=await Tesseract.createWorker("eng",1,{
           logger,
-          workerPath:"https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
-          corePath:"https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+          workerPath:"https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/worker.min.js",
+          corePath:"https://unpkg.com/tesseract.js-core@5.1.1",
           langPath:"https://tessdata.projectnaptha.com/4.0.0"
         });
 
@@ -1009,10 +1053,21 @@
         const result=await worker.recognize(canvas);
         return result?.data?.text||"";
       }catch(primaryError){
-        console.warn("Worker OCR failed; trying direct OCR fallback.",primaryError);
+        console.warn("Primary OCR worker failed; trying fallback OCR.",primaryError);
 
-        const fallback=await window.Tesseract.recognize(canvas,"eng",{logger});
-        return fallback?.data?.text||"";
+        try{
+          const fallback=await Tesseract.recognize(canvas,"eng",{
+            logger,
+            workerPath:"https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/worker.min.js",
+            corePath:"https://unpkg.com/tesseract.js-core@5.1.1",
+            langPath:"https://tessdata.projectnaptha.com/4.0.0"
+          });
+
+          return fallback?.data?.text||"";
+        }catch(fallbackError){
+          console.error("Fallback OCR also failed.",fallbackError);
+          throw fallbackError;
+        }
       }finally{
         if(worker){
           try{await worker.terminate()}catch(_){}
