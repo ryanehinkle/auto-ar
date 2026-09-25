@@ -89,7 +89,7 @@
     .finance-value-line{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:4px}
     .finance-original{color:#73737d;font-size:.72rem;font-weight:750;text-decoration:line-through;text-decoration-thickness:1.5px}
     .finance-discounted{color:#e6e6ea;font-size:.83rem;font-weight:900}
-    .finance-incentive-note{margin-top:4px;color:#c7c7cf;font-size:.64rem;font-weight:750}
+    .finance-incentive-note{margin-top:4px;color:#ddddE4;font-size:.64rem;font-weight:800}
     .other-detail{margin-top:3px;color:#6f6f79;font-size:.6rem;line-height:1.3}
     .finance-summary{margin-top:11px;padding-top:10px;border-top:1px solid #29292f}
     .summary-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:3px 1px;color:#a6a6af;font-size:.7rem}
@@ -613,75 +613,197 @@
 
       for(let i=0;i<lines.length;i++){
         const line=clean(lines[i]);
-        const section=detectProductSection(line);
 
-        if(section==="Incentives"){
-          inIncentives=true;
+        if(!inIncentives){
+          if(/^Incentives?$/i.test(line)){
+            inIncentives=true;
+          }
           continue;
         }
 
-        if(!inIncentives)continue;
-
+        // Once inside Incentives, do NOT use generic product-section detection
+        // to decide when the section ends. Words like "Gameplay" and
+        // "Room Rental" are legitimate cells inside incentive rows.
         if(
-          (section&&section!=="Incentives") ||
           /^(?:BILLING SUMMARY|PAYMENT SUMMARY|EVENT NOTES|IMPORTANT REMINDERS|INTERNAL NOTES)\b/i.test(line)
         ){
           break;
         }
 
         body.push(line);
+
+        // The Incentives TOTAL row is the true end of this section.
+        if(/\bIncentives?\s+TOTAL\b/i.test(line)){
+          break;
+        }
       }
 
+      if(!body.length)return[];
+
+      const flat=clean(body.join(" "));
       const records=[];
       const seen=new Set();
 
-      for(let i=0;i<body.length;i++){
-        const line=body[i];
+      const specs=[
+        {
+          target:"Space Rental",
+          patterns:[
+            /\broom\s+rental\b[^]{0,120}?\bincentive\b/gi,
+            /\bspace\s+rental\b[^]{0,120}?\bincentive\b/gi,
+            /\bincentive\b[^]{0,80}?\broom\s+rental\b/gi
+          ]
+        },
+        {
+          target:"Gameplay",
+          patterns:[
+            /\bgame\s*play\b[^]{0,120}?\bincentive\b/gi,
+            /\bgameplay\b[^]{0,120}?\bincentive\b/gi,
+            /\btopgolf\b[^]{0,120}?\bincentive\b/gi,
+            /\bincentive\b[^]{0,80}?\bgame\s*play\b/gi,
+            /\bincentive\b[^]{0,80}?\bgameplay\b/gi
+          ]
+        },
+        {
+          target:"Equipment Rental",
+          patterns:[
+            /\bequipment\b[^]{0,120}?\bincentive\b/gi,
+            /\blimited\s+inventory\b[^]{0,120}?\bincentive\b/gi
+          ]
+        },
+        {
+          target:"Digital Media",
+          patterns:[
+            /\bdigital\s+media\b[^]{0,120}?\bincentive\b/gi,
+            /\bmarketing\b[^]{0,120}?\bincentive\b/gi
+          ]
+        },
+        {
+          target:"Labor",
+          patterns:[
+            /\blabou?r\b[^]{0,120}?\bincentive\b/gi,
+            /\bstaff\b[^]{0,120}?\bincentive\b/gi
+          ]
+        },
+        {
+          target:"Retail",
+          patterns:[
+            /\bretail\b[^]{0,120}?\bincentive\b/gi,
+            /\bmerch(?:andise)?\b[^]{0,120}?\bincentive\b/gi
+          ]
+        },
+        {
+          target:"Beverages",
+          patterns:[
+            /\bbeverages?\b[^]{0,120}?\bincentive\b/gi,
+            /\bbar\b[^]{0,120}?\bincentive\b/gi,
+            /\balcohol\b[^]{0,120}?\bincentive\b/gi
+          ]
+        },
+        {
+          target:"Food",
+          patterns:[
+            /\bfood\b[^]{0,120}?\bincentive\b/gi,
+            /\bcatering\b[^]{0,120}?\bincentive\b/gi
+          ]
+        }
+      ];
 
-        // Section total is a reconciliation number only. It is NEVER itself
-        // an incentive row and must never be assigned to Gameplay.
-        if(/\bIncentives?\s+TOTAL\b/i.test(line))continue;
+      const markers=[];
 
-        const hasIncentiveLabel=/\bincentive\b|\bdiscount\b|\bcredit\b/i.test(line);
-        if(!hasIncentiveLabel)continue;
+      for(const spec of specs){
+        for(const re of spec.patterns){
+          re.lastIndex=0;
+          let match;
 
-        // PDF.js can occasionally wrap a row. Use the current row plus up to
-        // two following lines, but stop before another incentive row or TOTAL.
-        const rowParts=[line];
+          while((match=re.exec(flat))!==null){
+            markers.push({
+              target:spec.target,
+              index:match.index,
+              end:match.index+match[0].length
+            });
+          }
+        }
+      }
 
-        for(let j=i+1;j<Math.min(body.length,i+3);j++){
-          const next=body[j];
+      markers.sort((a,b)=>a.index-b.index);
 
-          if(/\bIncentives?\s+TOTAL\b/i.test(next))break;
-          if(/\bincentive\b|\bdiscount\b|\bcredit\b/i.test(next))break;
+      // Collapse duplicate markers for the same logical row. PDF text often
+      // repeats the category in Product Name + Toast Item Name.
+      const compact=[];
 
-          rowParts.push(next);
+      for(const marker of markers){
+        const last=compact[compact.length-1];
+
+        if(
+          last &&
+          last.target===marker.target &&
+          marker.index-last.index<120
+        ){
+          last.end=Math.max(last.end,marker.end);
+          continue;
         }
 
-        const rowText=clean(rowParts.join(" "));
-        const target=inferIncentiveTarget(rowText);
+        compact.push({...marker});
+      }
 
+      const totalIndex=flat.search(/\bIncentives?\s+TOTAL\b/i);
+
+      for(let i=0;i<compact.length;i++){
+        const marker=compact[i];
+        const next=compact[i+1];
+        let segmentEnd=next?next.index:flat.length;
+
+        if(totalIndex>=0&&totalIndex>marker.end){
+          segmentEnd=Math.min(segmentEnd,totalIndex);
+        }
+
+        const segment=flat.slice(marker.end,segmentEnd);
         const negativeAmounts=[
-          ...rowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
+          ...segment.matchAll(/USD\s*-\s*([\d,.]+)/gi)
         ].map(match=>Math.abs(parseMoney(match[1])||0))
          .filter(amount=>amount>0.004);
 
         if(!negativeAmounts.length)continue;
 
-        // Incentive row format contains the per-unit discount first and the
-        // row total at the far right. Contracted revenue is reduced by the
-        // ROW TOTAL, i.e. the last negative USD amount on that row.
+        // Last negative USD amount before the next incentive row is the row total.
         const amount=negativeAmounts[negativeAmounts.length-1];
-        const key=target+"|"+amount.toFixed(2);
+        const key=marker.target+"|"+amount.toFixed(2);
 
         if(seen.has(key))continue;
         seen.add(key);
 
         records.push({
-          target,
+          target:marker.target,
           amount,
-          source:rowText
+          source:segment
         });
+      }
+
+      // Extra row-oriented fallback for PDFs where the category word and
+      // negative total survive together on one extracted line.
+      for(let i=0;i<body.length;i++){
+        if(/\bIncentives?\s+TOTAL\b/i.test(body[i]))continue;
+
+        const windowText=clean(
+          [body[i-1]||"",body[i],body[i+1]||""].join(" ")
+        );
+
+        if(!/\bincentive\b/i.test(windowText))continue;
+
+        const negativeAmounts=[
+          ...windowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
+        ].map(match=>Math.abs(parseMoney(match[1])||0))
+         .filter(amount=>amount>0.004);
+
+        if(!negativeAmounts.length)continue;
+
+        const target=inferIncentiveTarget(windowText);
+        const amount=negativeAmounts[negativeAmounts.length-1];
+        const key=target+"|"+amount.toFixed(2);
+
+        if(seen.has(key))continue;
+        seen.add(key);
+        records.push({target,amount,source:windowText});
       }
 
       return records;
