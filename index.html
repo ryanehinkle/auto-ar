@@ -124,8 +124,11 @@
     .ar-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:1px solid #2f3841;border-left-width:3px;border-radius:8px;background:#15191d}
     .ar-item-label{font-size:.67rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
     .ar-item-value{font-size:.85rem;font-weight:900;color:#8fd0a4;font-variant-numeric:tabular-nums}
+    .ar-item.negative .ar-item-value{color:#ee8b8b}
+    .ar-total.negative,.ar-total.negative span,.ar-total.negative strong{color:#ee8b8b}
     .ar-item-detail{margin-top:2px;color:#777f88;font-size:.59rem;font-weight:650}
     .ar-item.food{border-left-color:#8dc6f1}.ar-item.food .ar-item-label{color:#9dcef1}
+    .ar-item.beverages{border-left-color:#78b6df}.ar-item.beverages .ar-item-label{color:#91c8ec}
     .ar-item.lbw{border-left-color:#ef9dbd}.ar-item.lbw .ar-item-label{color:#f0a9c4}
     .ar-item.na{border-left-color:#7fd5d0}.ar-item.na .ar-item-label{color:#92ddd8}
     .ar-item.gameplay{border-left-color:#8ed39c}.ar-item.gameplay .ar-item-label{color:#9bdbaa}
@@ -1349,6 +1352,7 @@
     function parseToastSales(text){
       const totals={
         Food:0,
+        Beverages:0,
         LBW:0,
         NA:0,
         Gameplay:0,
@@ -1371,6 +1375,7 @@
 
       const categories=[
         {label:"Food",patterns:[/\bFood\b/i]},
+        {label:"Beverages",patterns:[/\bEvent\s+Drink\s+Package\b/i,/\bDrink\s+Package\b/i,/\bBeverage\s+Package\b/i]},
         {label:"Gameplay",patterns:[/\bGame\s*Play\b/i,/\bGameplay\b/i]},
         {label:"Equipment Rental",patterns:[/\bEvent\s*[-–—]?\s*Equipment\s+Rental\b/i,/\bEquipment\s+Rental\b/i]},
         {label:"Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
@@ -1383,7 +1388,8 @@
         {label:"Beer",patterns:[/\bBeer\b/i]},
         {label:"Liquor",patterns:[/\bLiquor\b/i]},
         {label:"Wine",patterns:[/\bWine\b/i]},
-        {label:"Coach",patterns:[/\bCoach\b/i]}
+        {label:"Coach",patterns:[/\bCoach\b/i]},
+        {label:"Other Fees",patterns:[/\bVoluntary\s*Tip\b/i,/\bGratuity\b/i]}
       ];
 
       const hits=[];
@@ -1481,7 +1487,7 @@
 
       if(totalNetSales===null&&recognized.size){
         const reconstructLabels=[
-          "Food","LBW","NA","Gameplay","Retail","Labor",
+          "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
           "Equipment Rental","Space Rental","Digital Media",
           "Fees","Other Fees","Admin Fee"
         ];
@@ -1503,6 +1509,7 @@
       if(/^beer\b/.test(x)||/^liquor\b/.test(x)||/^wine\b/.test(x))return"LBW";
       if(/^n\/?a\s*bev\b|^na\s*bev\b|^non[- ]?alcoholic\b/.test(x))return"NA";
       if(/^food\b/.test(x))return"Food";
+      if(/^event\s+drink\s+package\b|^drink\s+package\b|^beverage\s+package\b/.test(x))return"Beverages";
       if(/^game\s*play\b|^gameplay\b/.test(x))return"Gameplay";
       if(/^retail\b/.test(x))return"Retail";
       if(/^event\s*-\s*labou?r\b|^labou?r\b/.test(x))return"Labor";
@@ -1512,6 +1519,7 @@
       if(/^admin\s*fee\b/.test(x))return"Admin Fee";
       if(/^events?\s*-\s*fees?\b|^events?\s+fees?\b|^fees?\b/.test(x))return"Fees";
       if(/^coach\b/.test(x))return"Other Fees";
+      if(/^voluntary\s*tip\b|^gratuity\b/.test(x))return"Other Fees";
 
       return null;
     }
@@ -1553,9 +1561,12 @@
     }
 
     function compareAdditionalRevenue(toast,financial,parsed){
+      // Compare Toast to the same contracted numbers the user sees in the
+      // Contracted boxes. Beverage packages stay separate from day-of L/B/W.
       const contracted={
         Food:Number(financial.categories.Food||0),
-        LBW:Number(financial.categories.Beverages||0),
+        Beverages:Number(financial.categories.Beverages||0),
+        LBW:Number(financial.categories.LBW||0),
         NA:Number(financial.categories.NA||0),
         Gameplay:Number(financial.categories.Gameplay||0),
         Retail:Number(financial.categories.Retail||0),
@@ -1570,7 +1581,7 @@
       const items=[];
       const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
       const expectedLabels=[
-        "Food","LBW","NA","Gameplay","Retail","Labor",
+        "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
         "Equipment Rental","Space Rental","Digital Media",
         "Other Fees","Admin Fee"
       ];
@@ -1580,9 +1591,9 @@
 
         const actual=Number(toast[label]||0);
         const base=Number(contracted[label]||0);
-        const additional=Math.max(0,actual-base);
+        const additional=actual-base;
 
-        if(additional>0.004){
+        if(Math.abs(additional)>0.004){
           items.push({label,actual,contracted:base,additional});
         }
       }
@@ -1592,7 +1603,7 @@
       if(recognized.has("Fees")){
         const feeAmount=Number(toast.Fees||0);
 
-        if(feeAmount>0.004){
+        if(Math.abs(feeAmount)>0.004){
           items.push({
             label:isFlex?"Unused F&B":"Other",
             actual:feeAmount,
@@ -1606,7 +1617,7 @@
 
       const grossTotal=items.reduce((sum,item)=>sum+item.additional,0);
       const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
-      const total=isFlex?Math.max(0,grossTotal-fbMinimum):grossTotal;
+      const total=isFlex?grossTotal-fbMinimum:grossTotal;
 
       const toastTotalNetSales=
         toast.__totalNetSales!==null &&
@@ -1617,24 +1628,36 @@
 
       const toastAdminFee=Number(toast["Admin Fee"]||0);
 
+      // Base the check on the category totals actually shown in Contracted,
+      // rather than a separately parsed hidden amount.
+      const contractedCategorySubtotal=[
+        "Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor",
+        "Equipment Rental","Space Rental","Digital Media","Other Fees"
+      ].reduce(
+        (sum,label)=>sum+Number(financial.categories[label]||0),
+        0
+      );
+
       const contractedSubtotal=
-        financial.subtotal!==null &&
-        financial.subtotal!==undefined &&
-        Number.isFinite(Number(financial.subtotal))
-          ? Number(financial.subtotal)
-          : null;
+        Number.isFinite(contractedCategorySubtotal)
+          ? contractedCategorySubtotal
+          : (
+              financial.subtotal!==null &&
+              financial.subtotal!==undefined &&
+              Number.isFinite(Number(financial.subtotal))
+                ? Number(financial.subtotal)
+                : null
+            );
 
       let subtotalCheck=null;
 
       if(
         toastTotalNetSales!==null &&
-        toastAdminFee!==null &&
         contractedSubtotal!==null
       ){
-        const expectedAR=Math.max(
-          0,
-          toastTotalNetSales-toastAdminFee-contractedSubtotal
-        );
+        // Signed AR is intentional: Toast can be below the contract.
+        const expectedAR=
+          toastTotalNetSales-toastAdminFee-contractedSubtotal;
         const arDifference=total-expectedAR;
 
         subtotalCheck={
@@ -1671,7 +1694,7 @@
       }else{
         for(const item of comparison.items){
           const row=document.createElement("div");
-          row.className="ar-item "+arClassName(item.label);
+          row.className="ar-item "+arClassName(item.label)+(item.additional<0?" negative":"");
 
           const left=document.createElement("div");
 
@@ -1685,7 +1708,7 @@
 
           const value=document.createElement("div");
           value.className="ar-item-value";
-          value.textContent="+"+formatMoney(item.additional);
+          value.textContent=formatSignedMoney(item.additional);
 
           left.append(label,detail);
           row.append(left,value);
@@ -1723,7 +1746,7 @@
       }
 
       const total=document.createElement("div");
-      total.className="ar-total";
+      total.className="ar-total"+(comparison.total<0?" negative":"");
 
       const totalLabel=document.createElement("span");
       totalLabel.textContent="Total Additional Revenue";
@@ -2036,6 +2059,7 @@
     function arClassName(label){
       const classes={
         Food:"food",
+        Beverages:"beverages",
         LBW:"lbw",
         NA:"na",
         Gameplay:"gameplay",
@@ -2248,7 +2272,12 @@
       const n=Number(String(value||"").replace(/USD|\$|,/gi,"").trim());
       return Number.isFinite(n)?n:null;
     }
-    function formatMoney(value){
+    function formatSignedMoney(value){
+      if(value===null||!Number.isFinite(value))return"—";
+      if(Math.abs(value)<0.005)return formatMoney(0);
+      return value>0?"+"+formatMoney(value):formatMoney(value);
+    }
+        function formatMoney(value){
       if(value===null||!Number.isFinite(value))return"—";
       return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(value);
     }
