@@ -209,7 +209,7 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
   <script type="module">
 
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
@@ -918,17 +918,12 @@
       try{
         await arType(scanLog,"Reading Toast sales summary…");
 
-        const ocr=await window.Tesseract.recognize(blob,"eng",{
-          logger:(message)=>{
-            if(message.status==="recognizing text"&&Number.isFinite(message.progress)){
-              scanLog.dataset.progress=Math.round(message.progress*100)+"%";
-            }
-          }
-        });
+        const prepared=await prepareToastImage(blob);
+        const text=await recognizeToastImage(prepared,scanLog);
 
         await arType(scanLog,"Matching Toast categories to contract…");
 
-        const toast=parseToastSales(ocr.data.text||"");
+        const toast=parseToastSales(text);
         const comparison=compareAdditionalRevenue(toast,financial);
 
         await arType(
@@ -945,18 +940,87 @@
         },450);
       }catch(error){
         console.error("Toast screenshot OCR failed:",error);
-        scanLog.textContent="Could not read that screenshot. Paste a clearer Sales Category Summary image.";
+        scanLog.textContent="Toast screenshot reader hit an error. Please paste the same screenshot again.";
         pasteZone.style.display="";
         pasteZone.classList.remove("processing");
       }
     }
 
-    function parseToastSales(text){
-      const rows=String(text||"")
-        .split(/\r?\n/)
-        .map(clean)
-        .filter(Boolean);
+    async function prepareToastImage(blob){
+      const bitmap=await createImageBitmap(blob);
 
+      const targetWidth=Math.min(2600,Math.max(1400,bitmap.width*3));
+      const scale=targetWidth/bitmap.width;
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.round(bitmap.width*scale);
+      canvas.height=Math.round(bitmap.height*scale);
+
+      const ctx=canvas.getContext("2d",{willReadFrequently:true});
+      ctx.fillStyle="#ffffff";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+      bitmap.close();
+
+      // Toast screenshots are clean UI captures. Converting to high-contrast
+      // grayscale makes the table text much easier for OCR to read reliably.
+      const image=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const data=image.data;
+
+      for(let i=0;i<data.length;i+=4){
+        const gray=Math.round(data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114);
+        const adjusted=gray>228?255:gray<95?0:Math.max(0,Math.min(255,(gray-95)*1.9));
+        data[i]=adjusted;
+        data[i+1]=adjusted;
+        data[i+2]=adjusted;
+        data[i+3]=255;
+      }
+
+      ctx.putImageData(image,0,0);
+      return canvas;
+    }
+
+    async function recognizeToastImage(canvas,scanLog){
+      if(!window.Tesseract)throw new Error("Tesseract did not load");
+
+      const logger=(message)=>{
+        if(message.status==="recognizing text"&&Number.isFinite(message.progress)){
+          const percent=Math.round(message.progress*100);
+          scanLog.textContent="Reading Toast sales summary… "+percent+"%";
+        }
+      };
+
+      let worker=null;
+
+      try{
+        worker=await window.Tesseract.createWorker("eng",1,{
+          logger,
+          workerPath:"https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+          corePath:"https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+          langPath:"https://tessdata.projectnaptha.com/4.0.0"
+        });
+
+        await worker.setParameters({
+          preserve_interword_spaces:"1",
+          tessedit_pageseg_mode:"6"
+        });
+
+        const result=await worker.recognize(canvas);
+        return result?.data?.text||"";
+      }catch(primaryError){
+        console.warn("Worker OCR failed; trying direct OCR fallback.",primaryError);
+
+        const fallback=await window.Tesseract.recognize(canvas,"eng",{logger});
+        return fallback?.data?.text||"";
+      }finally{
+        if(worker){
+          try{await worker.terminate()}catch(_){}
+        }
+      }
+    }
+
+    function parseToastSales(text){
       const totals={
         Food:0,
         LBW:0,
@@ -969,6 +1033,68 @@
         "Admin Fee":0
       };
 
+      const source=String(text||"");
+      const flat=source
+        .replace(/[|]/g," ")
+        .replace(/\s+/g," ")
+        .trim();
+
+      const categories=[
+        {label:"Food",patterns:[/\bFood\b/i]},
+        {label:"Gameplay",patterns:[/\bGame\s*Play\b/i,/\bGameplay\b/i]},
+        {label:"Event Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
+        {label:"NA",patterns:[/\bN\s*\/?\s*A\s*Bev\b/i,/\bNA\s*Bev\b/i,/\bNon[- ]?Alcoholic\b/i]},
+        {label:"Admin Fee",patterns:[/\bAdmin\s+Fee\b/i]},
+        {label:"Retail",patterns:[/\bRetail\b/i]},
+        {label:"Labor",patterns:[/\bLabou?r\b/i]},
+        {label:"Beer",patterns:[/\bBeer\b/i]},
+        {label:"Liquor",patterns:[/\bLiquor\b/i]},
+        {label:"Wine",patterns:[/\bWine\b/i]},
+        {label:"Events Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i]},
+        {label:"Coach",patterns:[/\bCoach\b/i]},
+        {label:"Marketing Partnerships",patterns:[/\bMarketing\s+Partnerships?\b/i]}
+      ];
+
+      const hits=[];
+
+      for(const category of categories){
+        let best=null;
+
+        for(const pattern of category.patterns){
+          const match=pattern.exec(flat);
+          if(match&&(!best||match.index<best.index)){
+            best={index:match.index,length:match[0].length};
+          }
+        }
+
+        if(best)hits.push({...category,...best});
+      }
+
+      hits.sort((a,b)=>a.index-b.index);
+
+      for(let i=0;i<hits.length;i++){
+        const hit=hits[i];
+        const next=hits[i+1];
+        const end=next?next.index:Math.min(flat.length,hit.index+240);
+        const segment=flat.slice(hit.index+hit.length,end);
+
+        const amounts=extractToastAmounts(segment);
+        if(!amounts.length)continue;
+
+        const netSales=amounts[0];
+        if(netSales===null)continue;
+
+        if(hit.label==="Beer"||hit.label==="Liquor"||hit.label==="Wine"){
+          totals.LBW+=netSales;
+        }else if(hit.label==="Events Fees"||hit.label==="Coach"||hit.label==="Marketing Partnerships"){
+          totals["Other Fees"]+=netSales;
+        }else{
+          totals[hit.label]+=netSales;
+        }
+      }
+
+      // Fallback for OCR engines that preserve each table row cleanly.
+      const rows=source.split(/\r?\n/).map(clean).filter(Boolean);
       for(const row of rows){
         const category=mapToastCategory(row);
         if(!category)continue;
@@ -976,13 +1102,10 @@
         const amounts=extractToastAmounts(row);
         if(!amounts.length)continue;
 
-        // Sales Category Summary columns are Items, Net Sales, Discounts, Gross Sales.
-        // The first money value on the category row is Net Sales, which is what we
-        // compare against the contracted amount for AR.
-        const netSales=amounts[0];
-        if(netSales===null)continue;
-
-        totals[category]+=netSales;
+        // Only fill categories not already recovered from the flattened table.
+        if(Math.abs(totals[category]||0)<0.005){
+          totals[category]+=amounts[0];
+        }
       }
 
       return totals;
