@@ -582,6 +582,7 @@
       if(normalized==="limited inventory"||normalized==="equipment rental"||normalized==="event equipment rental")return"Equipment Rental";
       if(normalized==="event space rental"||normalized==="space rental")return"Space Rental";
       if(normalized==="digital media"||normalized==="marketing partnerships")return"Digital Media";
+      if(normalized==="charges & fees"||normalized==="charges and fees")return"Charges & Fees";
       if(normalized==="incentive"||normalized==="incentives")return"Incentives";
 
       return null;
@@ -784,6 +785,8 @@
       let assetHasLeaderboard=false;
       let pendingMinimumContext="";
       let pendingMinimumLines=0;
+      let voluntaryGratuity=0;
+      let chargesFeesTotal=0;
 
       for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
         const line=clean(lines[lineIndex]);
@@ -801,6 +804,22 @@
           assetHasLeaderboard=true;
         }
 
+        if(
+          section==="Charges & Fees"&&
+          /\bvoluntary\s+(?:gratuity|tip)\b/i.test(line)
+        ){
+          const gratuityItem=extractLineItem(line,section);
+
+          if(gratuityItem){
+            const gratuityAmount=
+              gratuityItem.printedTotal!==null
+                ? Math.max(0,Number(gratuityItem.printedTotal)||0)
+                : Math.max(0,Number(gratuityItem.computedTotal)||0);
+
+            voluntaryGratuity+=gratuityAmount;
+          }
+        }
+
         const totalMatch=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*(-?[\d,.]+)/i);
 
         if(totalMatch){
@@ -811,6 +830,11 @@
             const amount=Math.abs(rawAmount);
 
             if(section==="Incentives"||/\bincentives?\b/i.test(rawLabel)){
+              continue;
+            }
+
+            if(section==="Charges & Fees"){
+              chargesFeesTotal=amount;
               continue;
             }
 
@@ -1019,6 +1043,16 @@
         }
       }
 
+      if(chargesFeesTotal>0.004){
+        const remainingCharges=Math.max(0,chargesFeesTotal-voluntaryGratuity);
+
+        if(remainingCharges>0.004){
+          categories["Other Fees"]+=remainingCharges;
+          detected["Other Fees"]=true;
+          otherBreakdown.push("Charges & Fees "+formatMoney(remainingCharges));
+        }
+      }
+
       const originalCategories={...categories};
       const incentiveAdjustments={};
 
@@ -1047,6 +1081,25 @@
         serviceCharge=amounts[2]??null;
         adminFee=amounts[3]??null;
         totalCharges=amounts[4]??null;
+      }
+
+      if(voluntaryGratuity>0.004){
+        const existingServiceCharge=Number(serviceCharge||0);
+        const baseTotal=
+          Number(subtotal||0)+
+          Number(taxes||0)+
+          Number(adminFee||0)+
+          existingServiceCharge;
+
+        const gratuityExplainsTotal=
+          totalCharges!==null&&
+          Math.abs(
+            Number(totalCharges)-baseTotal-voluntaryGratuity
+          )<=0.03;
+
+        if(existingServiceCharge<0.005||gratuityExplainsTotal){
+          serviceCharge=existingServiceCharge+voluntaryGratuity;
+        }
       }
 
       let payments=null,outstanding=null;
@@ -1370,13 +1423,14 @@
       if(x==="game play"||x==="gameplay")return"Gameplay";
       if(x==="event drink package"||x==="drink package"||x==="beverage package")return"Beverages";
       if(x==="admin fee")return"Admin Fee";
+      if(x==="service charge"||x==="voluntarytip"||x==="voluntary tip"||x==="voluntary gratuity"||x==="gratuity")return"Service Charge";
       if(x==="event - space rental"||x==="event space rental"||x==="space rental")return"Space Rental";
       if(x==="event - equipment rental"||x==="event equipment rental"||x==="equipment rental")return"Equipment Rental";
       if(x==="event - labor"||x==="event labor"||x==="labor"||x==="labour")return"Labor";
       if(x==="marketing partnerships"||x==="marketing partnership"||x==="digital media")return"Digital Media";
       if(x==="events fees"||x==="event fees"||x==="fees"||x==="fee")return"Fees";
       if(x==="retail")return"Retail";
-      if(x==="club rental"||x==="coach"||x==="voluntarytip"||x==="voluntary tip"||x==="gratuity")return"Other Fees";
+      if(x==="club rental"||x==="coach")return"Other Fees";
 
       return"Other Fees";
     }
@@ -1395,6 +1449,7 @@
         "Digital Media":0,
         Fees:0,
         "Other Fees":0,
+        "Service Charge":0,
         "Admin Fee":0
       };
       const recognized=new Set();
@@ -1823,6 +1878,7 @@
         {label:"Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
         {label:"Digital Media",patterns:[/\bMarketing\s+Partnerships?\b/i,/\bDigital\s+Media\b/i]},
         {label:"Admin Fee",patterns:[/\bAdmin\s+Fee\b/i]},
+        {label:"Service Charge",patterns:[/\bService\s+Charge\b/i,/\bVoluntary\s*Tip\b/i,/\bVoluntary\s+Gratuity\b/i,/\bGratuity\b/i]},
         {label:"Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i,/(?<!Admin )\bFees?\b/i]},
         {label:"NA",patterns:[/\bN\s*\/?\s*A\s*Bev\b/i,/\bNA\s*Bev\b/i,/\bNon[- ]?Alcoholic\b/i]},
         {label:"Retail",patterns:[/\bRetail\b/i]},
@@ -1830,8 +1886,7 @@
         {label:"Beer",patterns:[/\bBeer\b/i]},
         {label:"Liquor",patterns:[/\bLiquor\b/i]},
         {label:"Wine",patterns:[/\bWine\b/i]},
-        {label:"Coach",patterns:[/\bCoach\b/i]},
-        {label:"Other Fees",patterns:[/\bVoluntary\s*Tip\b/i,/\bGratuity\b/i]}
+        {label:"Coach",patterns:[/\bCoach\b/i]}
       ];
 
       const hits=[];
@@ -1929,7 +1984,7 @@
         const nonAlcoholLabels=[
           "Food","Beverages","NA","Gameplay","Retail","Labor",
           "Equipment Rental","Space Rental","Digital Media",
-          "Fees","Other Fees","Admin Fee"
+          "Fees","Other Fees","Service Charge","Admin Fee"
         ];
 
         const nonAlcoholTotal=nonAlcoholLabels.reduce(
@@ -1949,7 +2004,7 @@
         const reconstructLabels=[
           "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
           "Equipment Rental","Space Rental","Digital Media",
-          "Fees","Other Fees","Admin Fee"
+          "Fees","Other Fees","Service Charge","Admin Fee"
         ];
 
         totalNetSales=reconstructLabels.reduce(
@@ -1977,9 +2032,9 @@
       if(/^event\s*-\s*space\s+rental\b|^event\s+space\s+rental\b|^space\s+rental\b/.test(x))return"Space Rental";
       if(/^marketing\s+partnerships?\b|^digital\s+media\b/.test(x))return"Digital Media";
       if(/^admin\s*fee\b/.test(x))return"Admin Fee";
+      if(/^service\s+charge\b|^voluntary\s*tip\b|^voluntary\s+gratuity\b|^gratuity\b/.test(x))return"Service Charge";
       if(/^events?\s*-\s*fees?\b|^events?\s+fees?\b|^fees?\b/.test(x))return"Fees";
       if(/^coach\b/.test(x))return"Other Fees";
-      if(/^voluntary\s*tip\b|^gratuity\b/.test(x))return"Other Fees";
 
       return null;
     }
@@ -2087,6 +2142,7 @@
           : null;
 
       const toastAdminFee=Number(toast["Admin Fee"]||0);
+      const toastServiceCharge=Number(toast["Service Charge"]||0);
 
       // Base the check on the category totals actually shown in Contracted,
       // rather than a separately parsed hidden amount.
@@ -2117,13 +2173,14 @@
       ){
         // Signed AR is intentional: Toast can be below the contract.
         const expectedAR=
-          toastTotalNetSales-toastAdminFee-contractedSubtotal;
+          toastTotalNetSales-toastAdminFee-toastServiceCharge-contractedSubtotal;
         const arDifference=total-expectedAR;
 
         subtotalCheck={
           pass:Math.abs(arDifference)<=0.03,
           toastTotalNetSales,
           toastAdminFee,
+          toastServiceCharge,
           totalAR:total,
           expectedAR,
           contractedSubtotal,
