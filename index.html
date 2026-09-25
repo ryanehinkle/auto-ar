@@ -59,6 +59,9 @@
     .events-progress-text{min-width:32px;color:#9aa0a7;font-size:.7rem;font-weight:850;font-variant-numeric:tabular-nums}
     .events-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 0 auto}
     .event-count{color:#8fbe9d;font-size:.8rem;font-weight:800;white-space:nowrap}
+    .toast-upload-button{border:1px solid #9c744d;border-radius:9px;padding:8px 13px;background:#2b241d;color:#e7bc91;font-size:.75rem;font-weight:850;cursor:pointer;transition:.15s ease;white-space:nowrap}
+    .toast-upload-button:hover:not(:disabled){background:#382b20;border-color:#ba8958;color:#f0cba8}
+    .toast-upload-button:disabled{opacity:.4;cursor:default}
     .export-button{border:1px solid #47729e;border-radius:9px;padding:8px 13px;background:#1b2a39;color:#a9cef1;font-size:.75rem;font-weight:850;cursor:pointer;transition:.15s ease}
     .export-button:hover:not(:disabled){background:#22374b;border-color:#5c8bbb;color:#c0dcf5}
     .export-button:disabled{opacity:.4;cursor:default}
@@ -176,6 +179,7 @@
 </head>
 <body>
   <input id="pdfInput" type="file" accept="application/pdf,.pdf">
+  <input id="toastCsvInput" type="file" accept=".csv,text/csv">
 
   <main id="landing" class="landing">
     <section class="landing-card">
@@ -225,6 +229,7 @@
         </div>
       </div>
       <div class="events-actions">
+        <button id="toastUploadButton" class="toast-upload-button" type="button" disabled>Upload Toast</button>
         <div id="eventCount" class="event-count">0 events</div>
         <button id="exportButton" class="export-button" type="button" disabled>Export</button>
       </div>
@@ -261,7 +266,7 @@
 
     const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
     const $=(id)=>document.getElementById(id);
-    const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),eventsProgressBar=$("eventsProgressBar"),eventsProgressText=$("eventsProgressText"),exportButton=$("exportButton"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
+    const pdfInput=$("pdfInput"),toastCsvInput=$("toastCsvInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),eventsProgressBar=$("eventsProgressBar"),eventsProgressText=$("eventsProgressText"),toastUploadButton=$("toastUploadButton"),exportButton=$("exportButton"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
     const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let activePreviewPdf=null;
@@ -275,6 +280,12 @@
     uploadButton.addEventListener("click",()=>pdfInput.click());
     newFileButton.addEventListener("click",()=>pdfInput.click());
     exportButton.addEventListener("click",exportAnnotatedPdf);
+    toastUploadButton.addEventListener("click",()=>toastCsvInput.click());
+    toastCsvInput.addEventListener("change",()=>{
+      const file=toastCsvInput.files&&toastCsvInput.files[0];
+      if(file)processToastCsv(file);
+      toastCsvInput.value="";
+    });
     pdfInput.addEventListener("change",()=>{const f=pdfInput.files&&pdfInput.files[0];if(f)processFile(f);pdfInput.value=""});
     appBrand.addEventListener("click",()=>location.reload());
     appBrand.addEventListener("keydown",(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();location.reload()}});
@@ -304,6 +315,8 @@
       currentGroups=[];
       currentUploadName=file.name;
       exportButton.disabled=true;
+      toastUploadButton.disabled=true;
+      toastUploadButton.title="";
       eventsProgressBar.style.width="0%";
       eventsProgressText.textContent="0/0";
       status.innerHTML='<span class="status-dot"></span> Reading';
@@ -390,6 +403,7 @@
 
         status.innerHTML='<span class="status-dot"></span> Complete';
         scanProgressBar.style.width="100%";
+        toastUploadButton.disabled=false;
         await terminalMessage("All events separated and analyzed.","success");
       }catch(err){
         console.error(err);
@@ -1214,11 +1228,263 @@
 
       preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
 
+      group.ui={
+        contracted,
+        subtotalCheck,
+        pasteZone,
+        replaceButton,
+        scanLog,
+        arResults
+      };
+
       body.append(kicker,name,meta,contracted,additional);
       card.append(preview,body);
       return card;
     }
 
+
+    function parseCsvText(text){
+      const rows=[];
+      let row=[];
+      let field="";
+      let quoted=false;
+      const source=String(text||"");
+
+      for(let i=0;i<source.length;i++){
+        const ch=source[i];
+
+        if(quoted){
+          if(ch==='"'&&source[i+1]==='"'){
+            field+='"';
+            i++;
+          }else if(ch==='"'){
+            quoted=false;
+          }else{
+            field+=ch;
+          }
+          continue;
+        }
+
+        if(ch==='"'){
+          quoted=true;
+        }else if(ch===","){
+          row.push(field);
+          field="";
+        }else if(ch==="\n"){
+          row.push(field.replace(/\r$/,""));
+          rows.push(row);
+          row=[];
+          field="";
+        }else{
+          field+=ch;
+        }
+      }
+
+      if(field.length||row.length){
+        row.push(field.replace(/\r$/,""));
+        rows.push(row);
+      }
+
+      return rows.filter(row=>row.some(cell=>String(cell||"").trim()!==""));
+    }
+
+    function csvNumber(value){
+      const cleaned=String(value??"")
+        .trim()
+        .replace(/[$,]/g,"")
+        .replace(/^\((.*)\)$/,"-$1");
+
+      const number=Number(cleaned);
+      return Number.isFinite(number)?number:0;
+    }
+
+    function toastCsvEventCard(server){
+      const match=String(server||"").trim().match(/^Event\s+(\d+)\s+Card$/i);
+      if(!match)return null;
+
+      const number=Number(match[1]);
+      if(!Number.isFinite(number))return null;
+
+      return String(number<1000?1000+number:number);
+    }
+
+    function mapToastCsvCategory(category){
+      const x=String(category||"")
+        .toLowerCase()
+        .replace(/[–—]/g,"-")
+        .replace(/\s+/g," ")
+        .trim();
+
+      if(x==="beer"||x==="liquor"||x==="wine")return"LBW";
+      if(x==="n/a bev"||x==="na bev"||x==="non-alcoholic"||x==="non alcoholic")return"NA";
+      if(x==="food")return"Food";
+      if(x==="game play"||x==="gameplay")return"Gameplay";
+      if(x==="event drink package"||x==="drink package"||x==="beverage package")return"Beverages";
+      if(x==="admin fee")return"Admin Fee";
+      if(x==="event - space rental"||x==="event space rental"||x==="space rental")return"Space Rental";
+      if(x==="event - equipment rental"||x==="event equipment rental"||x==="equipment rental")return"Equipment Rental";
+      if(x==="event - labor"||x==="event labor"||x==="labor"||x==="labour")return"Labor";
+      if(x==="marketing partnerships"||x==="marketing partnership"||x==="digital media")return"Digital Media";
+      if(x==="events fees"||x==="event fees"||x==="fees"||x==="fee")return"Fees";
+      if(x==="retail")return"Retail";
+      if(x==="club rental"||x==="coach"||x==="voluntarytip"||x==="voluntary tip"||x==="gratuity")return"Other Fees";
+
+      return"Other Fees";
+    }
+
+    function makeToastDataFromCsvRows(rows){
+      const totals={
+        Food:0,
+        Beverages:0,
+        LBW:0,
+        NA:0,
+        Gameplay:0,
+        Retail:0,
+        Labor:0,
+        "Equipment Rental":0,
+        "Space Rental":0,
+        "Digital Media":0,
+        Fees:0,
+        "Other Fees":0,
+        "Admin Fee":0
+      };
+      const recognized=new Set();
+      let totalNetSales=0;
+
+      for(const row of rows){
+        const net=csvNumber(row.netSales);
+        totalNetSales+=net;
+
+        const mapped=mapToastCsvCategory(row.category);
+        if(!mapped)continue;
+
+        totals[mapped]=(totals[mapped]||0)+net;
+        recognized.add(mapped);
+      }
+
+      totals.__recognized=recognized;
+      totals.__totalNetSales=totalNetSales;
+      totals.__source="csv";
+      return totals;
+    }
+
+    async function processToastCsv(file){
+      if(!currentGroups.length)return;
+
+      const oldText=toastUploadButton.textContent;
+      toastUploadButton.disabled=true;
+      toastUploadButton.textContent="Reading…";
+
+      try{
+        const text=await file.text();
+        const rows=parseCsvText(text);
+
+        if(rows.length<2){
+          throw new Error("Toast CSV is empty");
+        }
+
+        const headers=rows[0].map(value=>String(value||"").trim().toLowerCase());
+        const indexOfHeader=(...names)=>{
+          for(const name of names){
+            const index=headers.indexOf(name.toLowerCase());
+            if(index>=0)return index;
+          }
+          return-1;
+        };
+
+        const categoryIndex=indexOfHeader("Sales Category");
+        const serverIndex=indexOfHeader("Server");
+        const netIndex=indexOfHeader("Net Sales");
+
+        if(categoryIndex<0||serverIndex<0||netIndex<0){
+          throw new Error("Toast CSV needs Sales Category, Server, and Net Sales columns");
+        }
+
+        const byEvent=new Map();
+        let ignoredRows=0;
+        let eventRows=0;
+
+        for(let i=1;i<rows.length;i++){
+          const row=rows[i];
+          const eventCard=toastCsvEventCard(row[serverIndex]);
+
+          if(!eventCard){
+            ignoredRows++;
+            continue;
+          }
+
+          eventRows++;
+
+          if(!byEvent.has(eventCard)){
+            byEvent.set(eventCard,[]);
+          }
+
+          byEvent.get(eventCard).push({
+            category:row[categoryIndex],
+            netSales:row[netIndex]
+          });
+        }
+
+        let matched=0;
+
+        for(const group of currentGroups){
+          const parsed=group.parsed;
+          const card=String(parsed?.eventCard||"").trim();
+          const eventSales=byEvent.get(card);
+
+          if(!eventSales?.length)continue;
+
+          const toast=makeToastDataFromCsvRows(eventSales);
+          const comparison=compareAdditionalRevenue(
+            toast,
+            parsed.financial,
+            parsed
+          );
+
+          parsed.arProcessed=true;
+          parsed.arComparison=comparison;
+          group.arComparison=comparison;
+
+          const ui=group.ui;
+
+          if(ui){
+            renderAdditionalRevenue(ui.arResults,comparison);
+            updateSubtotalCheck(ui.subtotalCheck,comparison);
+
+            ui.contracted.open=false;
+            ui.scanLog.replaceChildren();
+            ui.scanLog.classList.remove("visible");
+            ui.pasteZone.classList.remove("processing");
+            ui.pasteZone.style.display="none";
+            ui.replaceButton.classList.add("visible");
+          }
+
+          matched++;
+        }
+
+        updateEventsProgress();
+
+        toastUploadButton.title=
+          file.name+" · "+matched+" matched event"+(matched===1?"":"s");
+
+        await terminalMessage(
+          "Toast CSV matched "+matched+" of "+currentGroups.length+
+          " BEO events · "+eventRows+" event sales rows used · "+
+          ignoredRows+" non-event server rows ignored.",
+          matched?"success":"muted"
+        );
+
+        if(!matched){
+          alert("No Toast Event ## Card servers matched the BEO event cards in this PDF.");
+        }
+      }catch(error){
+        console.error("Toast CSV import failed:",error);
+        alert(error?.message||"Could not read that Toast CSV.");
+      }finally{
+        toastUploadButton.disabled=false;
+        toastUploadButton.textContent=oldText;
+      }
+    }
 
     async function handleToastPaste(event,group,parsed,financial,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,results){
       const items=Array.from(event.clipboardData?.items||[]);
