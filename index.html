@@ -706,7 +706,7 @@
     }
 
     function isEventNABeverageRow(text){
-      return /\bevent\s+n\s*\/?\s*a\s+(?:bev|beverage|beverages)\b/i.test(String(text||""));
+      return /\bevent\s+n\s*\/?\s*a(?:\s+(?:bev|beverage|beverages))?\b/i.test(String(text||""));
     }
 
     function isEventLBWRow(text){
@@ -819,7 +819,8 @@
       }
 
       const contractedBeverageSplit={
-        found:false,
+        foundNA:false,
+        foundLBW:false,
         na:0,
         lbw:0
       };
@@ -832,8 +833,6 @@
 
         if(!isToastNA&&!isToastLBW)continue;
 
-        contractedBeverageSplit.found=true;
-
         // For these explicitly labeled Toast rows, only the far-right printed
         // row total is contracted revenue. A missing printed total means $0.
         const rowTotal=item.printedTotal!==null
@@ -841,10 +840,12 @@
           : 0;
 
         if(isToastNA){
+          contractedBeverageSplit.foundNA=true;
           contractedBeverageSplit.na+=rowTotal;
         }
 
         if(isToastLBW){
+          contractedBeverageSplit.foundLBW=true;
           contractedBeverageSplit.lbw+=rowTotal;
         }
       }
@@ -934,20 +935,25 @@
         }
       }
 
-      if(contractedBeverageSplit.found&&!tags.includes("Youth")){
-        categories.NA=contractedBeverageSplit.na;
-        categories.Beverages=contractedBeverageSplit.lbw;
+      if(!tags.includes("Youth")){
+        if(contractedBeverageSplit.foundNA){
+          categories.NA=contractedBeverageSplit.na;
 
-        if(categories.NA>0.004){
-          detected.NA=true;
-        }else{
-          delete detected.NA;
+          if(categories.NA>0.004){
+            detected.NA=true;
+          }else{
+            delete detected.NA;
+          }
         }
 
-        if(categories.Beverages>0.004){
-          detected.Beverages=true;
-        }else{
-          delete detected.Beverages;
+        if(contractedBeverageSplit.foundLBW){
+          categories.Beverages=contractedBeverageSplit.lbw;
+
+          if(categories.Beverages>0.004){
+            detected.Beverages=true;
+          }else{
+            delete detected.Beverages;
+          }
         }
       }
 
