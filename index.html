@@ -2030,16 +2030,30 @@
 
       const pageWidth=firstPage.getWidth();
 
-      // Center the export annotation beneath the Booking Type / Event Ambassador row.
-      const contentLeft=42;
-      const contentRight=pageWidth-42;
+      // Use the actual BEO content/table width, not the whole PDF page.
+      // The first section heading below Booking Type shares the same left edge
+      // as the content box, so it gives us a reliable horizontal boundary.
+      const sectionBelow=firstItems
+        .filter(item=>
+          booking &&
+          item.y<booking.y-4 &&
+          /^(?:Asset|Beverages?|Food|Gameplay|Game Enhancement|Retail|Labor|Limited Inventory|Equipment Rental|Event Space Rental|Space Rental|Digital Media|Incentives?)$/i.test(item.text)
+        )
+        .sort((a,b)=>b.y-a.y)[0]||null;
+
+      const detectedLeft=Math.min(
+        booking?.x??48,
+        sectionBelow?.x??(booking?.x??48)
+      );
+      const contentLeft=Math.max(36,detectedLeft-4);
+      const contentRight=pageWidth-contentLeft;
       const contentWidth=contentRight-contentLeft;
-      const centerX=contentLeft+(contentWidth/2);
-      const y=booking?booking.y-19:firstPage.getHeight()-220;
+      const centerX=(contentLeft+contentRight)/2;
+      const y=booking?booking.y-22:firstPage.getHeight()-220;
 
       if(!parsed.arProcessed||!comparison){
         const notDone="AR NOT COMPLETED";
-        const size=8.2;
+        const size=10.4;
         const width=bold.widthOfTextAtSize(notDone,size);
 
         firstPage.drawText(notDone,{
@@ -2059,27 +2073,27 @@
         // Only show the category line when there are actual AR categories.
         if(pieces.length){
           const categoryText=pieces.join("  |  ");
-          const lines=wrapPdfText(bold,categoryText,7.6,contentWidth,2);
+          const lines=wrapPdfText(bold,categoryText,10.2,contentWidth,2);
 
           lines.forEach((line,index)=>{
-            const lineWidth=bold.widthOfTextAtSize(line,7.6);
+            const lineWidth=bold.widthOfTextAtSize(line,10.2);
 
             firstPage.drawText(line,{
               x:centerX-(lineWidth/2),
-              y:y-(index*10),
-              size:7.6,
+              y:y-(index*13),
+              size:10.2,
               font:bold,
               color:rgb(0.10,0.10,0.12)
             });
           });
 
-          totalY=y-(lines.length*10)-2;
+          totalY=y-(lines.length*13)-3;
         }
 
         const totalLabel="TOTAL AR: ";
         const green=rgb(0.10,0.44,0.22);
         const black=rgb(0.10,0.10,0.12);
-        const totalSize=8.4;
+        const totalSize=11.4;
 
         if(comparison.flexAdjusted){
           const leftText=
