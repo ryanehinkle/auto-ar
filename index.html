@@ -743,6 +743,17 @@
       return /\bevent\s+(?:l\s*\/?\s*b\s*\/?\s*w|lbw)\b/i.test(String(text||""));
     }
 
+    function isFlexMinimumText(text){
+      const x=String(text||"");
+
+      return(
+        /\bf\s*&\s*b\s+minimum\b/i.test(x) ||
+        /\bfood\s*&\s*beverage\s+minimum\b/i.test(x) ||
+        /\bflex\b[^]{0,90}\bminimum\b/i.test(x) ||
+        /\bminimum\b[^]{0,90}\bflex\b/i.test(x)
+      );
+    }
+
     function hasNABeverageText(text){
       return(
         /\bn\s*\/\s*a\b/i.test(text) ||
@@ -771,13 +782,17 @@
       const incentiveRecords=extractIncentiveRecords(lines);
       let section="";
       let assetHasLeaderboard=false;
+      let pendingMinimumContext="";
+      let pendingMinimumLines=0;
 
-      for(const rawLine of lines){
-        const line=clean(rawLine);
+      for(let lineIndex=0;lineIndex<lines.length;lineIndex++){
+        const line=clean(lines[lineIndex]);
         const nextSection=detectProductSection(line);
 
         if(nextSection){
           section=nextSection;
+          pendingMinimumContext="";
+          pendingMinimumLines=0;
           if(section==="Asset")assetHasLeaderboard=false;
           continue;
         }
@@ -828,7 +843,29 @@
 
         if(section!=="Incentives"){
           const item=extractLineItem(line,section);
-          if(item)lineItems.push(item);
+          const revenueSection=section==="Beverages"||section==="Food";
+
+          if(item){
+            if(revenueSection&&pendingMinimumContext){
+              item.line=clean(pendingMinimumContext+" "+line);
+              item.isFlexMinimum=true;
+              pendingMinimumContext="";
+              pendingMinimumLines=0;
+            }else if(revenueSection&&isFlexMinimumText(line)){
+              item.isFlexMinimum=true;
+            }
+
+            lineItems.push(item);
+          }else if(revenueSection&&isFlexMinimumText(line)){
+            pendingMinimumContext=line;
+            pendingMinimumLines=0;
+          }else if(revenueSection&&pendingMinimumContext&&pendingMinimumLines<2){
+            pendingMinimumContext=clean(pendingMinimumContext+" "+line);
+            pendingMinimumLines++;
+          }else if(pendingMinimumContext){
+            pendingMinimumContext="";
+            pendingMinimumLines=0;
+          }
         }
       }
 
@@ -893,13 +930,8 @@
             : item.computedTotal;
 
         const isYouth=/\byouth\b/i.test(item.line);
-        const isNA=hasNABeverageText(item.line);
-        const isFlex=/\bflex\b|\bmulti[- ]?bay\s+flex\b/i.test(item.line);
-        const isMinimum=isFlex&&(
-          /\bminimum\b/i.test(item.line) ||
-          /\bf\s*&\s*b\s+minimum\b/i.test(item.line) ||
-          /\bfood\s*&\s*beverage\s+minimum\b/i.test(item.line)
-        );
+        const isMinimum=Boolean(item.isFlexMinimum)||isFlexMinimumText(item.line);
+        const isNA=!isMinimum&&hasNABeverageText(item.line);
 
         if(isYouth){
           youthFood+=item.computedTotal;
@@ -2516,6 +2548,7 @@
         const green=rgb(0.10,0.44,0.22);
         const black=rgb(0.10,0.10,0.12);
         const totalSize=11.4;
+        const totalLabelGap=4;
 
         if(comparison.flexAdjusted){
           const formulaText=
@@ -2528,7 +2561,7 @@
           const labelWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
           const formulaWidth=bold.widthOfTextAtSize(formulaText,totalSize);
           const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
-          const totalWidth=labelWidth+formulaWidth+resultWidth;
+          const totalWidth=labelWidth+totalLabelGap+formulaWidth+resultWidth;
           const startX=centerX-(totalWidth/2);
 
           // Keep the TOTAL AR label and final answer green, while the actual
@@ -2542,7 +2575,7 @@
           });
 
           firstPage.drawText(formulaText,{
-            x:startX+labelWidth,
+            x:startX+labelWidth+totalLabelGap,
             y:totalY,
             size:totalSize,
             font:bold,
@@ -2550,7 +2583,7 @@
           });
 
           firstPage.drawText(resultText,{
-            x:startX+labelWidth+formulaWidth,
+            x:startX+labelWidth+totalLabelGap+formulaWidth,
             y:totalY,
             size:totalSize,
             font:bold,
@@ -2560,7 +2593,7 @@
           const resultText=formatMoney(comparison.total);
           const labelWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
           const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
-          const totalWidth=labelWidth+resultWidth;
+          const totalWidth=labelWidth+totalLabelGap+resultWidth;
           const startX=centerX-(totalWidth/2);
 
           firstPage.drawText(totalLabel,{
@@ -2572,7 +2605,7 @@
           });
 
           firstPage.drawText(resultText,{
-            x:startX+labelWidth,
+            x:startX+labelWidth+totalLabelGap,
             y:totalY,
             size:totalSize,
             font:bold,
