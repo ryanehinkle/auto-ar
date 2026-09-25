@@ -474,6 +474,56 @@
       };
     }
 
+    function extractYouthFoodTotal(lines){
+      let section="";
+      let youthContext=0;
+      let total=0;
+
+      for(let i=0;i<lines.length;i++){
+        const line=clean(lines[i]);
+        const nextSection=detectProductSection(line);
+
+        if(nextSection){
+          section=nextSection;
+          youthContext=0;
+          continue;
+        }
+
+        if(section!=="Food"&&section!=="Beverages"){
+          youthContext=0;
+          continue;
+        }
+
+        if(/\byouth\b/i.test(line)){
+          youthContext=3;
+        }else if(youthContext>0){
+          youthContext--;
+        }
+
+        if(youthContext<=0)continue;
+
+        const firstUsdIndex=line.search(/USD\s*[\d,.]+/i);
+        if(firstUsdIndex<0)continue;
+
+        const unitMatch=line.slice(firstUsdIndex).match(/^USD\s*([\d,.]+)/i);
+        if(!unitMatch)continue;
+
+        const prefix=line.slice(0,firstUsdIndex);
+        const numberMatches=[...prefix.matchAll(/(?:^|\s)(\d+(?:\.\d+)?)(?=\s|$)/g)];
+        if(!numberMatches.length)continue;
+
+        const quantity=Number(numberMatches[numberMatches.length-1][1]);
+        const unitPrice=parseMoney(unitMatch[1]);
+
+        if(!Number.isFinite(quantity)||unitPrice===null)continue;
+
+        total+=quantity*unitPrice;
+        youthContext=0;
+      }
+
+      return total;
+    }
+
     function extractFinancials(lines,tags=[]){
       const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Event Space Rental":0,"F&B Minimum":0,"Other Fees":0};
       const detected={};
@@ -558,12 +608,32 @@
         }
       }
 
-      if(youthFood>0){
+      if(tags.includes("Youth")){
+        const robustYouthFood=extractYouthFoodTotal(lines);
+
+        if(robustYouthFood>0){
+          // Youth package rule: the qualifying Youth Food + Youth Beverage
+          // product rows are all treated as Food, using qty × unit price.
+          categories.Food=robustYouthFood;
+          detected.Food=true;
+
+          categories.Beverages=0;
+          delete detected.Beverages;
+
+          categories.NA=0;
+          delete detected.NA;
+        }else if(youthFood>0){
+          categories.Food=youthFood;
+          detected.Food=true;
+        }
+      }else if(youthFood>0){
         categories.Food+=youthFood;
         detected.Food=true;
       }
 
       for(const parent of ["Food","Beverages"]){
+        if(tags.includes("Youth"))break;
+
         if(splitFromParent[parent]>0){
           categories[parent]=Math.max(0,categories[parent]-splitFromParent[parent]);
 
