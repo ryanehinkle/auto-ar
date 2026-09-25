@@ -1402,6 +1402,16 @@
       };
     }
 
+    function hasAllAlcoholLabels(text){
+      const x=String(text||"").toLowerCase();
+
+      const hasBeer=/\bbe[e3]r\b/i.test(x);
+      const hasLiquor=/\bl[i1]qu[o0]r\b/i.test(x);
+      const hasWine=/\bw[i1l]ne\b/i.test(x);
+
+      return hasBeer&&hasLiquor&&hasWine;
+    }
+
     function parseToastSales(text){
       const totals={
         Food:0,
@@ -1530,6 +1540,29 @@
           if(totalAmounts.length){
             totalNetSales=totalAmounts[0];
           }
+        }
+      }
+
+      // When Beer, Liquor, and Wine are all present, L/B/W must reconcile
+      // against the authoritative Toast Total Net Sales. This prevents one
+      // slightly misread alcohol row from producing a partial/wrong LBW total.
+      if(totalNetSales!==null&&hasAllAlcoholLabels(source)){
+        const nonAlcoholLabels=[
+          "Food","Beverages","NA","Gameplay","Retail","Labor",
+          "Equipment Rental","Space Rental","Digital Media",
+          "Fees","Other Fees","Admin Fee"
+        ];
+
+        const nonAlcoholTotal=nonAlcoholLabels.reduce(
+          (sum,label)=>sum+Number(totals[label]||0),
+          0
+        );
+
+        const reconciledLBW=totalNetSales-nonAlcoholTotal;
+
+        if(Number.isFinite(reconciledLBW)&&reconciledLBW>=-0.005){
+          totals.LBW=Math.max(0,reconciledLBW);
+          recognized.add("LBW");
         }
       }
 
