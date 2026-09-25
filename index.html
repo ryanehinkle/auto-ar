@@ -522,7 +522,12 @@
       const amounts=line.match(/USD\s*-?[\d,.]+/gi)||[];
       const quantity=Number(qtyPrice[1]);
       const unitPrice=parseMoney(qtyPrice[2]);
-      const printedTotal=amounts.length?parseMoney(amounts[amounts.length-1]):null;
+
+      // One money value on a product row is just the unit price.
+      // A true line total is only present when there is a second money value.
+      const printedTotal=amounts.length>=2
+        ? parseMoney(amounts[amounts.length-1])
+        : null;
 
       if(!Number.isFinite(quantity)||unitPrice===null)return null;
 
@@ -760,11 +765,15 @@
         }
 
         if(isNA){
-          categories.NA+=normalAmount;
-          detected.NA=true;
+          const naAmount=
+            item.printedTotal!==null&&item.printedTotal>0
+              ? item.printedTotal
+              : 0;
 
-          if(item.printedTotal!==null&&item.printedTotal>0){
-            splitFromParent[parent]+=item.printedTotal;
+          if(naAmount>0.004){
+            categories.NA+=naAmount;
+            detected.NA=true;
+            splitFromParent[parent]+=naAmount;
           }
         }
       }
