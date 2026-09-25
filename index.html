@@ -1277,7 +1277,21 @@
       items.sort((a,b)=>b.additional-a.additional);
 
       const grossTotal=items.reduce((sum,item)=>sum+item.additional,0);
-      const isFlex=Array.isArray(parsed?.tags)&&parsed.tags.includes("    function renderAdditionalRevenue(container,comparison){
+      const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
+      const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
+      const total=isFlex?Math.max(0,grossTotal-fbMinimum):grossTotal;
+
+      return{
+        items,
+        grossTotal,
+        fbMinimum,
+        flexAdjusted:isFlex&&fbMinimum>0.004,
+        total,
+        recognizedCount:recognized.size
+      };
+    }
+
+    function renderAdditionalRevenue(container,comparison){
       container.replaceChildren();
 
       if(!comparison.items.length){
@@ -1316,20 +1330,25 @@
 
         const grossRow=document.createElement("div");
         grossRow.className="ar-calc-row";
+
         const grossLabel=document.createElement("span");
         grossLabel.textContent="Additional Revenue Before Minimum";
+
         const grossValue=document.createElement("strong");
         grossValue.textContent=formatMoney(comparison.grossTotal);
+
         grossRow.append(grossLabel,grossValue);
 
         const deductionRow=document.createElement("div");
         deductionRow.className="ar-calc-row deduction";
+
         const deductionLabel=document.createElement("span");
         deductionLabel.textContent="Less F&B Minimum";
+
         const deductionValue=document.createElement("strong");
         deductionValue.textContent="−"+formatMoney(comparison.fbMinimum);
-        deductionRow.append(deductionLabel,deductionValue);
 
+        deductionRow.append(deductionLabel,deductionValue);
         calculation.append(grossRow,deductionRow);
         container.appendChild(calculation);
       }
