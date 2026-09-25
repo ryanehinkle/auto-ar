@@ -750,8 +750,22 @@
       return(
         /\bf\s*&\s*b\s+minimum\b/i.test(x) ||
         /\bfood\s*&\s*beverage\s+minimum\b/i.test(x) ||
+        /\bfood\s+and\s+beverage\s+minimum\b/i.test(x) ||
         /\bflex\b[^]{0,90}\bminimum\b/i.test(x) ||
         /\bminimum\b[^]{0,90}\bflex\b/i.test(x)
+      );
+    }
+
+    function isFlexMinimumContextText(text){
+      const x=String(text||"");
+
+      return(
+        /\bflex\b/i.test(x) &&
+        (
+          /\bf\s*&\s*b\b/i.test(x) ||
+          /\bfood\s*&\s*beverage\b/i.test(x) ||
+          /\bfood\s+and\s+beverage\b/i.test(x)
+        )
       );
     }
 
@@ -871,16 +885,37 @@
 
           if(item){
             if(revenueSection&&pendingMinimumContext){
-              item.line=clean(pendingMinimumContext+" "+line);
-              item.isFlexMinimum=true;
+              const combined=clean(pendingMinimumContext+" "+line);
+              item.line=combined;
+
+              if(
+                isFlexMinimumText(combined) ||
+                (tags.includes("Flex")&&/\bminimum\b/i.test(combined))
+              ){
+                item.isFlexMinimum=true;
+              }
+
               pendingMinimumContext="";
               pendingMinimumLines=0;
-            }else if(revenueSection&&isFlexMinimumText(line)){
+            }else if(
+              revenueSection&&
+              (
+                isFlexMinimumText(line) ||
+                (tags.includes("Flex")&&/\bminimum\b/i.test(line))
+              )
+            ){
               item.isFlexMinimum=true;
             }
 
             lineItems.push(item);
-          }else if(revenueSection&&isFlexMinimumText(line)){
+          }else if(
+            revenueSection&&
+            (
+              isFlexMinimumText(line) ||
+              isFlexMinimumContextText(line) ||
+              (tags.includes("Flex")&&/\bminimum\b/i.test(line))
+            )
+          ){
             pendingMinimumContext=line;
             pendingMinimumLines=0;
           }else if(revenueSection&&pendingMinimumContext&&pendingMinimumLines<2){
@@ -954,7 +989,10 @@
             : item.computedTotal;
 
         const isYouth=/\byouth\b/i.test(item.line);
-        const isMinimum=Boolean(item.isFlexMinimum)||isFlexMinimumText(item.line);
+        const isMinimum=
+          Boolean(item.isFlexMinimum) ||
+          isFlexMinimumText(item.line) ||
+          (tags.includes("Flex")&&/\bminimum\b/i.test(item.line));
         const isNA=!isMinimum&&hasNABeverageText(item.line);
 
         if(isYouth){
