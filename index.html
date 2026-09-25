@@ -116,6 +116,12 @@
     .ar-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:12px 2px 2px;border-top:1px solid #303740;color:#9ad6ad;font-weight:900}
     .ar-total span{font-size:.86rem}
     .ar-total strong{font-size:1rem;font-weight:950;font-variant-numeric:tabular-nums}
+
+    .ar-calculation{margin-top:8px;padding-top:9px;border-top:1px solid #303740}
+    .ar-calc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 1px;color:#8d939a;font-size:.68rem;font-weight:750}
+    .ar-calc-row strong{color:#c9cdd2;font-size:.73rem;font-weight:850;font-variant-numeric:tabular-nums}
+    .ar-calc-row.deduction span,.ar-calc-row.deduction strong{color:#d7b481}
+
     .ar-empty{padding:9px 1px;color:#777f88;font-size:.68rem}
     .ar-replace{display:none;margin-left:auto;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
     .ar-replace.visible{display:inline-block}
@@ -925,7 +931,7 @@
         await arType(scanLog,"Matching Toast categories to contract…");
 
         const toast=parseToastSales(text);
-        const comparison=compareAdditionalRevenue(toast,financial);
+        const comparison=compareAdditionalRevenue(toast,financial,parsed);
 
         await arType(
           scanLog,
@@ -1239,7 +1245,7 @@
       return[];
     }
 
-    function compareAdditionalRevenue(toast,financial){
+    function compareAdditionalRevenue(toast,financial,parsed){
       const contracted={
         Food:Number(financial.categories.Food||0),
         LBW:Number(financial.categories.Beverages||0),
@@ -1253,7 +1259,6 @@
       };
 
       const items=[];
-
       const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
       const expectedLabels=["Food","LBW","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees","Admin Fee"];
 
@@ -1271,14 +1276,8 @@
 
       items.sort((a,b)=>b.additional-a.additional);
 
-      return{
-        items,
-        total:items.reduce((sum,item)=>sum+item.additional,0),
-        recognizedCount:recognized.size
-      };
-    }
-
-    function renderAdditionalRevenue(container,comparison){
+      const grossTotal=items.reduce((sum,item)=>sum+item.additional,0);
+      const isFlex=Array.isArray(parsed?.tags)&&parsed.tags.includes("    function renderAdditionalRevenue(container,comparison){
       container.replaceChildren();
 
       if(!comparison.items.length){
@@ -1286,42 +1285,53 @@
         empty.className="ar-empty";
         empty.textContent="No additional revenue detected.";
         container.appendChild(empty);
+      }else{
+        for(const item of comparison.items){
+          const row=document.createElement("div");
+          row.className="ar-item "+arClassName(item.label);
 
-        const zeroTotal=document.createElement("div");
-        zeroTotal.className="ar-total";
+          const left=document.createElement("div");
 
-        const zeroLabel=document.createElement("span");
-        zeroLabel.textContent="Total Additional Revenue";
+          const label=document.createElement("div");
+          label.className="ar-item-label";
+          label.textContent=item.label==="LBW"?"L/B/W":item.label;
 
-        const zeroValue=document.createElement("strong");
-        zeroValue.textContent=formatMoney(0);
+          const detail=document.createElement("div");
+          detail.className="ar-item-detail";
+          detail.textContent="Toast "+formatMoney(item.actual)+" · Contracted "+formatMoney(item.contracted);
 
-        zeroTotal.append(zeroLabel,zeroValue);
-        container.appendChild(zeroTotal);
-        return;
+          const value=document.createElement("div");
+          value.className="ar-item-value";
+          value.textContent="+"+formatMoney(item.additional);
+
+          left.append(label,detail);
+          row.append(left,value);
+          container.appendChild(row);
+        }
       }
 
-      for(const item of comparison.items){
-        const row=document.createElement("div");
-        row.className="ar-item "+arClassName(item.label);
+      if(comparison.flexAdjusted){
+        const calculation=document.createElement("div");
+        calculation.className="ar-calculation";
 
-        const left=document.createElement("div");
+        const grossRow=document.createElement("div");
+        grossRow.className="ar-calc-row";
+        const grossLabel=document.createElement("span");
+        grossLabel.textContent="Additional Revenue Before Minimum";
+        const grossValue=document.createElement("strong");
+        grossValue.textContent=formatMoney(comparison.grossTotal);
+        grossRow.append(grossLabel,grossValue);
 
-        const label=document.createElement("div");
-        label.className="ar-item-label";
-        label.textContent=item.label==="LBW"?"L/B/W":item.label;
+        const deductionRow=document.createElement("div");
+        deductionRow.className="ar-calc-row deduction";
+        const deductionLabel=document.createElement("span");
+        deductionLabel.textContent="Less F&B Minimum";
+        const deductionValue=document.createElement("strong");
+        deductionValue.textContent="−"+formatMoney(comparison.fbMinimum);
+        deductionRow.append(deductionLabel,deductionValue);
 
-        const detail=document.createElement("div");
-        detail.className="ar-item-detail";
-        detail.textContent="Toast "+formatMoney(item.actual)+" · Contracted "+formatMoney(item.contracted);
-
-        const value=document.createElement("div");
-        value.className="ar-item-value";
-        value.textContent="+"+formatMoney(item.additional);
-
-        left.append(label,detail);
-        row.append(left,value);
-        container.appendChild(row);
+        calculation.append(grossRow,deductionRow);
+        container.appendChild(calculation);
       }
 
       const total=document.createElement("div");
