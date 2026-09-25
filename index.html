@@ -954,6 +954,14 @@
       for(const item of lineItems){
         if(item.section!=="Beverages")continue;
 
+        const isMinimumRow=
+          Boolean(item.isFlexMinimum) ||
+          isFlexMinimumText(item.line) ||
+          (tags.includes("Flex")&&/\bminimum\b/i.test(item.line));
+
+        // Minimum always wins over N/A/LBW Toast item labels.
+        if(isMinimumRow)continue;
+
         const isToastNA=isEventNABeverageRow(item.line);
         const isToastLBW=isEventLBWRow(item.line);
 
