@@ -50,10 +50,18 @@
     .scan-panel .terminal{min-height:0;max-height:190px}
     .scan-progress{height:3px;background:#24242a;overflow:hidden}
     .scan-progress-bar{width:0;height:100%;background:#5e93cc;transition:width .16s ease}
-    .events-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:28px 0 14px}
+    .events-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:28px 0 14px}
+    .events-title-group{display:flex;align-items:center;gap:16px;min-width:0}
     .events-head h2{font-size:1.1rem;color:#f4f4f6}
-    .events-head p{margin-top:5px;color:#85858f;font-size:.8rem}
-    .event-count{color:#8fbe9d;font-size:.8rem;font-weight:800}
+    .events-progress{display:flex;align-items:center;gap:8px;min-width:150px}
+    .events-progress-track{width:118px;height:6px;overflow:hidden;border-radius:999px;background:#29292f;border:1px solid #33333a}
+    .events-progress-bar{width:0;height:100%;border-radius:999px;background:#79c990;transition:width .24s ease}
+    .events-progress-text{min-width:32px;color:#9aa0a7;font-size:.7rem;font-weight:850;font-variant-numeric:tabular-nums}
+    .events-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 0 auto}
+    .event-count{color:#8fbe9d;font-size:.8rem;font-weight:800;white-space:nowrap}
+    .export-button{border:1px solid #47729e;border-radius:9px;padding:8px 13px;background:#1b2a39;color:#a9cef1;font-size:.75rem;font-weight:850;cursor:pointer;transition:.15s ease}
+    .export-button:hover:not(:disabled){background:#22374b;border-color:#5c8bbb;color:#c0dcf5}
+    .export-button:disabled{opacity:.4;cursor:default}
     .events-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
     .event-card{min-width:0;overflow:hidden;border:1px solid #303036;border-radius:13px;background:#18181b;box-shadow:0 12px 34px rgba(0,0,0,.22);transition:transform .16s ease,border-color .16s ease}
     .event-card:hover{transform:translateY(-2px);border-color:#494951}
@@ -159,7 +167,7 @@
     #modalCanvas{display:block;max-width:88vw;max-height:80vh;background:#fff;box-shadow:0 5px 24px rgba(0,0,0,.36)}
     .modal-loading{position:absolute;color:#81818b;font-size:.8rem}
     @media(max-width:1100px){.events-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:700px){.events-grid{grid-template-columns:1fr}.event-preview{height:220px}.events-head{align-items:flex-start;flex-direction:column}}
+    @media(max-width:700px){.events-grid{grid-template-columns:1fr}.event-preview{height:220px}.events-head{align-items:flex-start;flex-direction:column}.events-title-group{width:100%;justify-content:space-between}.events-actions{width:100%;justify-content:flex-end}.events-progress{min-width:0}.events-progress-track{width:90px}}
 
   </style>
 </head>
@@ -196,7 +204,7 @@
 
     <section class="panel scan-panel">
       <header class="panel-header">
-        <span class="panel-title">AR scan</span>
+        <span class="panel-title">OCR Scan</span>
         <span id="status" class="status"><span class="status-dot"></span> Reading</span>
       </header>
       <div class="scan-progress"><div id="scanProgressBar" class="scan-progress-bar"></div></div>
@@ -204,11 +212,19 @@
     </section>
 
     <div class="events-head">
-      <div>
+      <div class="events-title-group">
         <h2>Events</h2>
-        <p>Each event is separated, trimmed to its own BEO pages, and analyzed individually.</p>
+        <div class="events-progress" aria-label="AR completion progress">
+          <div class="events-progress-track">
+            <div id="eventsProgressBar" class="events-progress-bar"></div>
+          </div>
+          <span id="eventsProgressText" class="events-progress-text">0/0</span>
+        </div>
       </div>
-      <div id="eventCount" class="event-count">0 events</div>
+      <div class="events-actions">
+        <div id="eventCount" class="event-count">0 events</div>
+        <button id="exportButton" class="export-button" type="button" disabled>Export</button>
+      </div>
     </div>
 
     <div id="eventsGrid" class="events-grid"></div>
@@ -240,17 +256,22 @@
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
-    const PDFDocument=window.PDFLib.PDFDocument;
+    const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
     const $=(id)=>document.getElementById(id);
-    const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
+    const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),eventsProgressBar=$("eventsProgressBar"),eventsProgressText=$("eventsProgressText"),exportButton=$("exportButton"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
     const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let activePreviewPdf=null;
     let activePreviewPage=1;
     let modalRenderTask=null;
+    let currentSourceBytes=null;
+    let currentSourcePdfJs=null;
+    let currentGroups=[];
+    let currentUploadName="Automatic-AR.pdf";
 
     uploadButton.addEventListener("click",()=>pdfInput.click());
     newFileButton.addEventListener("click",()=>pdfInput.click());
+    exportButton.addEventListener("click",exportAnnotatedPdf);
     pdfInput.addEventListener("change",()=>{const f=pdfInput.files&&pdfInput.files[0];if(f)processFile(f);pdfInput.value=""});
     appBrand.addEventListener("click",()=>location.reload());
     appBrand.addEventListener("keydown",(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();location.reload()}});
@@ -275,6 +296,13 @@
       eventsGrid.replaceChildren();
       emptyEvents.style.display="none";
       scanProgressBar.style.width="0%";
+      currentSourceBytes=null;
+      currentSourcePdfJs=null;
+      currentGroups=[];
+      currentUploadName=file.name;
+      exportButton.disabled=true;
+      eventsProgressBar.style.width="0%";
+      eventsProgressText.textContent="0/0";
       status.innerHTML='<span class="status-dot"></span> Reading';
       fileName.textContent=file.name;
       fileMeta.textContent=formatBytes(file.size);
@@ -284,6 +312,8 @@
         const bytes=new Uint8Array(await file.arrayBuffer());
         const sourcePdfLib=await PDFDocument.load(bytes.slice());
         const sourcePdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+        currentSourceBytes=bytes.slice();
+        currentSourcePdfJs=sourcePdf;
 
         fileMeta.textContent=formatBytes(file.size)+" · "+sourcePdf.numPages+(sourcePdf.numPages===1?" page":" pages");
         await terminalMessage("Mapping "+sourcePdf.numPages+" pages and locating event boundaries…");
@@ -298,7 +328,9 @@
         }
 
         const groups=buildEventGroups(pageRecords);
+        currentGroups=groups;
         eventCount.textContent=groups.length+(groups.length===1?" event":" events");
+        updateEventsProgress();
         await terminalMessage("Found "+groups.length+(groups.length===1?" event.":" events."),"success");
 
         if(!groups.length){
@@ -310,6 +342,8 @@
 
         for(const group of groups){
           group.parsed=parseEvent(group);
+          group.parsed.arProcessed=false;
+          group.parsed.arComparison=null;
         }
 
         groups.sort((a,b)=>{
@@ -328,6 +362,10 @@
             {numeric:true,sensitivity:"base"}
           );
         });
+
+        currentGroups=groups;
+        updateEventsProgress();
+        exportButton.disabled=false;
 
         let index=0;
         for(const group of groups){
@@ -1083,7 +1121,7 @@
       arResults.className="ar-results";
 
       pasteZone.addEventListener("paste",(event)=>{
-        handleToastPaste(event,p,f,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,arResults);
+        handleToastPaste(event,group,p,f,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,arResults);
       });
 
       pasteZone.addEventListener("click",()=>{
@@ -1100,6 +1138,10 @@
         subtotalCheck.className="subtotal-check";
         subtotalCheck.textContent="";
         subtotalCheck.removeAttribute("data-tooltip");
+        p.arProcessed=false;
+        p.arComparison=null;
+        group.arComparison=null;
+        updateEventsProgress();
         pasteZone.focus();
       });
 
@@ -1113,7 +1155,7 @@
     }
 
 
-    async function handleToastPaste(event,parsed,financial,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,results){
+    async function handleToastPaste(event,group,parsed,financial,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,results){
       const items=Array.from(event.clipboardData?.items||[]);
       const imageItem=items.find(item=>item.type&&item.type.startsWith("image/"));
       if(!imageItem)return;
@@ -1151,8 +1193,13 @@
           throw new Error("No Toast rows passed currency validation");
         }
 
+        parsed.arProcessed=true;
+        parsed.arComparison=comparison;
+        group.arComparison=comparison;
+
         renderAdditionalRevenue(results,comparison);
         updateSubtotalCheck(subtotalCheck,comparison);
+        updateEventsProgress();
 
         if(contracted){
           contracted.open=false;
@@ -1669,6 +1716,263 @@
 
       total.append(totalLabel,totalValue);
       container.appendChild(total);
+    }
+
+    function updateEventsProgress(){
+      const total=currentGroups.length;
+      const passed=currentGroups.filter(group=>
+        group?.parsed?.arProcessed &&
+        group?.parsed?.arComparison?.subtotalCheck?.pass
+      ).length;
+
+      eventsProgressText.textContent=passed+"/"+total;
+      eventsProgressBar.style.width=total?((passed/total)*100)+"%":"0%";
+      eventsProgressBar.title=passed+" of "+total+" events passed subtotal check";
+    }
+
+    function exportCategoryLabel(label){
+      const names={
+        LBW:"L/B/W",
+        NA:"NA",
+        Food:"FOOD",
+        Gameplay:"GAMEPLAY",
+        Retail:"RETAIL",
+        Labor:"LABOR",
+        "Equipment Rental":"EQUIPMENT",
+        "Space Rental":"SPACE",
+        "Digital Media":"DIGITAL MEDIA",
+        "Unused F&B":"UNUSED F&B",
+        Other:"OTHER",
+        "Other Fees":"OTHER",
+        "Admin Fee":"ADMIN"
+      };
+      return names[label]||String(label||"").toUpperCase();
+    }
+
+    async function getPageTextItems(pageNumber){
+      if(!currentSourcePdfJs)return[];
+      const page=await currentSourcePdfJs.getPage(pageNumber);
+      const content=await page.getTextContent();
+
+      return content.items
+        .filter(item=>item.str&&item.str.trim())
+        .map(item=>({
+          text:clean(item.str),
+          x:(item.transform&&item.transform[4])||0,
+          y:(item.transform&&item.transform[5])||0,
+          width:item.width||0
+        }));
+    }
+
+    function wrapPdfText(font,text,size,maxWidth,maxLines=2){
+      const words=String(text||"").split(/\s+/).filter(Boolean);
+      const lines=[];
+      let current="";
+
+      for(const word of words){
+        const next=current?current+" "+word:word;
+
+        if(font.widthOfTextAtSize(next,size)<=maxWidth){
+          current=next;
+          continue;
+        }
+
+        if(current)lines.push(current);
+        current=word;
+
+        if(lines.length>=maxLines-1)break;
+      }
+
+      if(current&&lines.length<maxLines)lines.push(current);
+      return lines;
+    }
+
+    function drawExportCheck(page,x,y,pass){
+      const green=rgb(0.20,0.62,0.34);
+      const yellow=rgb(0.86,0.64,0.12);
+      const paleGreen=rgb(0.88,0.97,0.90);
+      const paleYellow=rgb(1.00,0.96,0.78);
+      const color=pass?green:yellow;
+
+      page.drawCircle({
+        x,
+        y,
+        size:7,
+        color:pass?paleGreen:paleYellow,
+        borderColor:color,
+        borderWidth:1
+      });
+
+      if(pass){
+        page.drawLine({
+          start:{x:x-3.1,y:y},
+          end:{x:x-0.7,y:y-2.8},
+          thickness:1.5,
+          color
+        });
+        page.drawLine({
+          start:{x:x-0.7,y:y-2.8},
+          end:{x:x+3.8,y:y+3.1},
+          thickness:1.5,
+          color
+        });
+      }else{
+        page.drawLine({
+          start:{x,y:y+3.2},
+          end:{x,y:y-1.5},
+          thickness:1.5,
+          color
+        });
+        page.drawCircle({
+          x,
+          y:y-4,
+          size:0.9,
+          color
+        });
+      }
+    }
+
+    async function drawEventARExport(pdfDoc,group,font,bold){
+      if(!group.pageNumbers?.length)return;
+
+      const parsed=group.parsed||{};
+      const comparison=parsed.arComparison||null;
+      const firstSourceIndex=group.pageNumbers[0];
+      const firstPage=pdfDoc.getPage(firstSourceIndex);
+      const firstItems=await getPageTextItems(firstSourceIndex+1);
+
+      const booking=
+        firstItems.find(item=>/^BOOKING TYPE\s*:/i.test(item.text)) ||
+        firstItems.find(item=>/BOOKING TYPE/i.test(item.text));
+
+      const pageWidth=firstPage.getWidth();
+      const x=booking?Math.max(42,booking.x):48;
+      const y=booking?booking.y-22:firstPage.getHeight()-220;
+      const maxWidth=Math.max(260,pageWidth-x-48);
+
+      if(!parsed.arProcessed||!comparison){
+        firstPage.drawText("AR: NOT COMPLETED",{
+          x,
+          y,
+          size:7,
+          font:bold,
+          color:rgb(0.45,0.45,0.48)
+        });
+      }else{
+        const pieces=comparison.items.map(item=>
+          exportCategoryLabel(item.label)+" "+formatMoney(item.additional)
+        );
+
+        if(comparison.flexAdjusted){
+          pieces.push("F&B MIN -"+formatMoney(comparison.fbMinimum));
+        }
+
+        const categoryText=pieces.length
+          ? "AR: "+pieces.join("  |  ")
+          : "AR: NONE";
+
+        const lines=wrapPdfText(font,categoryText,6.6,maxWidth,2);
+
+        lines.forEach((line,index)=>{
+          firstPage.drawText(line,{
+            x,
+            y:y-(index*9),
+            size:6.6,
+            font:index===0?bold:font,
+            color:rgb(0.12,0.12,0.14)
+          });
+        });
+
+        const totalY=y-(lines.length*9)-1;
+        firstPage.drawText("TOTAL AR: "+formatMoney(comparison.total),{
+          x,
+          y:totalY,
+          size:7.2,
+          font:bold,
+          color:rgb(0.10,0.44,0.22)
+        });
+      }
+
+      if(!parsed.arProcessed||!comparison)return;
+
+      const billingRecord=group.records.find(record=>
+        /\bBILLING SUMMARY\b/i.test(record.text) ||
+        /Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges/i.test(record.text)
+      );
+
+      if(!billingRecord)return;
+
+      const billingSourceIndex=billingRecord.pageNumber-1;
+      const billingPage=pdfDoc.getPage(billingSourceIndex);
+      const billingItems=await getPageTextItems(billingRecord.pageNumber);
+
+      const subtotal=billingItems.find(item=>/^Subtotal$/i.test(item.text));
+      if(!subtotal)return;
+
+      const taxes=billingItems.find(item=>/^Taxes$/i.test(item.text));
+      const paymentSummary=billingItems.find(item=>/^PAYMENT SUMMARY$/i.test(item.text));
+
+      const check=comparison.subtotalCheck;
+      const pass=Boolean(check&&check.pass);
+      const badgeX=taxes
+        ? Math.max(subtotal.x+25,taxes.x-10)
+        : subtotal.x+70;
+      const badgeY=subtotal.y-14;
+
+      drawExportCheck(billingPage,badgeX,badgeY,pass);
+
+      if(check&&!check.pass){
+        const direction=check.arDifference>0?"AR up ":"AR down ";
+        const discrepancyText=direction+formatMoney(check.discrepancy);
+        const discrepancyY=paymentSummary
+          ? paymentSummary.y+5
+          : subtotal.y-38;
+
+        billingPage.drawText(discrepancyText,{
+          x:subtotal.x,
+          y:discrepancyY,
+          size:6.2,
+          font:bold,
+          color:rgb(0.62,0.43,0.08)
+        });
+      }
+    }
+
+    async function exportAnnotatedPdf(){
+      if(!currentSourceBytes||!currentGroups.length)return;
+
+      const oldText=exportButton.textContent;
+      exportButton.disabled=true;
+      exportButton.textContent="Exporting…";
+
+      try{
+        const pdfDoc=await PDFDocument.load(currentSourceBytes.slice());
+        const font=await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const bold=await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+        for(const group of currentGroups){
+          await drawEventARExport(pdfDoc,group,font,bold);
+        }
+
+        const bytes=await pdfDoc.save();
+        const blob=new Blob([bytes],{type:"application/pdf"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        const base=currentUploadName.replace(/\.pdf$/i,"");
+        a.href=url;
+        a.download=base+" - AR.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(()=>URL.revokeObjectURL(url),1500);
+      }catch(error){
+        console.error("AR export failed:",error);
+        alert("Could not export the annotated PDF. Please try again.");
+      }finally{
+        exportButton.disabled=false;
+        exportButton.textContent=oldText;
+      }
     }
 
     function updateSubtotalCheck(badge,comparison){
