@@ -63,6 +63,15 @@
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.65rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
     .event-tags{position:absolute;top:10px;right:10px;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:62%}
+
+    .subtotal-check{position:absolute;top:10px;left:10px;z-index:3;width:26px;height:26px;display:none;align-items:center;justify-content:center;border-radius:50%;font-size:.9rem;font-weight:950;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.18);transform:scale(.55);opacity:0}
+    .subtotal-check.visible{display:flex;animation:subtotalCheckPop .38s cubic-bezier(.2,.85,.25,1.25) forwards}
+    .subtotal-check.pass{border:1px solid #8ad4a0;background:#dcf7e4;color:#257241}
+    .subtotal-check.warn{border:1px solid #e6cc78;background:#fff4bf;color:#8a6b0b}
+    .subtotal-check::after{content:attr(data-tooltip);position:absolute;left:0;top:34px;min-width:max-content;padding:6px 8px;border:1px solid #3b3b42;border-radius:7px;background:#17171b;color:#e2e2e7;font-size:.61rem;font-weight:750;letter-spacing:0;text-transform:none;white-space:nowrap;box-shadow:0 5px 16px rgba(0,0,0,.28);opacity:0;pointer-events:none;transform:translateY(-3px);transition:.14s ease}
+    .subtotal-check:hover::after{opacity:1;transform:translateY(0)}
+    @keyframes subtotalCheckPop{0%{opacity:0;transform:scale(.55) rotate(-14deg)}70%{opacity:1;transform:scale(1.12) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+
     .event-tag{padding:4px 8px;border:1px solid transparent;border-radius:999px;font-size:.61rem;font-weight:900;letter-spacing:.055em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.12)}
     .event-tag.buffet{border-color:#95c7f1;background:#dff1ff;color:#245d8d}
     .event-tag.youth{border-color:#efb1cb;background:#ffe3ef;color:#8d345a}
@@ -773,6 +782,11 @@
 
       preview.appendChild(tags);
 
+      const subtotalCheck=document.createElement("div");
+      subtotalCheck.className="subtotal-check";
+      subtotalCheck.setAttribute("aria-hidden","true");
+      preview.appendChild(subtotalCheck);
+
       const meta=document.createElement("div");
       meta.className="event-meta";
       [["Date",p.date],["Time",p.time],["Guests",p.guests]].forEach(pair=>{
@@ -879,7 +893,7 @@
       arResults.className="ar-results";
 
       pasteZone.addEventListener("paste",(event)=>{
-        handleToastPaste(event,p,f,contracted,pasteZone,replaceButton,scanLog,arResults);
+        handleToastPaste(event,p,f,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,arResults);
       });
 
       pasteZone.addEventListener("click",()=>{
@@ -893,6 +907,9 @@
         pasteZone.classList.remove("processing");
         pasteZone.style.display="";
         replaceButton.classList.remove("visible");
+        subtotalCheck.className="subtotal-check";
+        subtotalCheck.textContent="";
+        subtotalCheck.removeAttribute("data-tooltip");
         pasteZone.focus();
       });
 
@@ -906,7 +923,7 @@
     }
 
 
-    async function handleToastPaste(event,parsed,financial,contracted,pasteZone,replaceButton,scanLog,results){
+    async function handleToastPaste(event,parsed,financial,contracted,subtotalCheck,pasteZone,replaceButton,scanLog,results){
       const items=Array.from(event.clipboardData?.items||[]);
       const imageItem=items.find(item=>item.type&&item.type.startsWith("image/"));
       if(!imageItem)return;
@@ -945,6 +962,7 @@
         }
 
         renderAdditionalRevenue(results,comparison);
+        updateSubtotalCheck(subtotalCheck,comparison);
 
         if(contracted){
           contracted.open=false;
@@ -1170,7 +1188,16 @@
 
       // Fallback for OCR engines that preserve each table row cleanly.
       const rows=source.split(/\r?\n/).map(clean).filter(Boolean);
+      let totalNetSales=null;
+
       for(const row of rows){
+        if(/^tota(?:l|1|!)(?:\s|$)/i.test(row)){
+          const totalAmounts=extractToastAmounts(row);
+          if(totalAmounts.length){
+            totalNetSales=totalAmounts[0];
+          }
+          continue;
+        }
         const category=mapToastCategory(row);
         if(!category)continue;
 
@@ -1184,7 +1211,18 @@
         recognized.add(category);
       }
 
+      if(totalNetSales===null){
+        const totalMatch=flat.match(/\btota(?:l|1|!)\s+\d+\s+(.{0,120})$/i);
+        if(totalMatch){
+          const totalAmounts=extractToastAmounts(totalMatch[1]);
+          if(totalAmounts.length){
+            totalNetSales=totalAmounts[0];
+          }
+        }
+      }
+
       totals.__recognized=recognized;
+      totals.__totalNetSales=totalNetSales;
       return totals;
     }
 
@@ -1280,6 +1318,36 @@
       const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
       const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
       const total=isFlex?Math.max(0,grossTotal-fbMinimum):grossTotal;
+      const toastTotalNetSales=Number.isFinite(Number(toast.__totalNetSales))
+        ? Number(toast.__totalNetSales)
+        : null;
+      const toastAdminFee=recognized.has("Admin Fee")
+        ? Number(toast["Admin Fee"]||0)
+        : null;
+      const contractedSubtotal=Number.isFinite(Number(financial.subtotal))
+        ? Number(financial.subtotal)
+        : null;
+
+      let subtotalCheck=null;
+
+      if(
+        toastTotalNetSales!==null &&
+        toastAdminFee!==null &&
+        contractedSubtotal!==null
+      ){
+        const calculatedSubtotal=toastTotalNetSales-(toastAdminFee+total);
+        const difference=calculatedSubtotal-contractedSubtotal;
+
+        subtotalCheck={
+          pass:Math.abs(difference)<=0.03,
+          toastTotalNetSales,
+          toastAdminFee,
+          totalAR:total,
+          calculatedSubtotal,
+          contractedSubtotal,
+          difference
+        };
+      }
 
       return{
         items,
@@ -1287,6 +1355,7 @@
         fbMinimum,
         flexAdjusted:isFlex&&fbMinimum>0.004,
         total,
+        subtotalCheck,
         recognizedCount:recognized.size
       };
     }
@@ -1364,6 +1433,30 @@
 
       total.append(totalLabel,totalValue);
       container.appendChild(total);
+    }
+
+    function updateSubtotalCheck(badge,comparison){
+      if(!badge)return;
+
+      const check=comparison.subtotalCheck;
+
+      badge.className="subtotal-check";
+      badge.textContent="";
+      badge.removeAttribute("data-tooltip");
+
+      if(!check)return;
+
+      if(check.pass){
+        badge.classList.add("pass","visible");
+        badge.textContent="✓";
+        badge.dataset.tooltip="Subtotal check pass";
+        badge.setAttribute("aria-label","Subtotal check pass");
+      }else{
+        badge.classList.add("warn","visible");
+        badge.textContent="!";
+        badge.dataset.tooltip="Subtotal check discrepancy";
+        badge.setAttribute("aria-label","Subtotal check discrepancy");
+      }
     }
 
     function arClassName(label){
