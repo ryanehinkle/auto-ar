@@ -1370,6 +1370,19 @@
         }
       }
 
+      if(totalNetSales===null&&recognized.size){
+        const reconstructLabels=[
+          "Food","LBW","NA","Gameplay","Retail","Labor",
+          "Equipment Rental","Space Rental","Digital Media",
+          "Fees","Other Fees","Admin Fee"
+        ];
+
+        totalNetSales=reconstructLabels.reduce(
+          (sum,label)=>sum+Number(totals[label]||0),
+          0
+        );
+      }
+
       totals.__recognized=recognized;
       totals.__totalNetSales=totalNetSales;
       return totals;
@@ -1493,9 +1506,7 @@
           ? Number(toast.__totalNetSales)
           : null;
 
-      const toastAdminFee=recognized.has("Admin Fee")
-        ? Number(toast["Admin Fee"]||0)
-        : null;
+      const toastAdminFee=Number(toast["Admin Fee"]||0);
 
       const contractedSubtotal=
         financial.subtotal!==null &&
@@ -1624,7 +1635,16 @@
       badge.textContent="";
       badge.removeAttribute("data-tooltip");
 
-      if(!check)return;
+      if(!check){
+        badge.classList.add("warn","visible");
+        badge.textContent="!";
+        badge.dataset.tooltip="Subtotal check discrepancy\n(unable to fully reconcile)";
+        badge.setAttribute(
+          "aria-label",
+          "Subtotal check discrepancy. Unable to fully reconcile."
+        );
+        return;
+      }
 
       if(check.pass){
         badge.classList.add("pass","visible");
