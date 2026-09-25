@@ -116,19 +116,23 @@
     const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),summaryPanel=$("summaryPanel"),detailsPanel=$("detailsPanel"),eventTitle=$("eventTitle"),eventSubtitle=$("eventSubtitle"),quickGrid=$("quickGrid"),detailsContent=$("detailsContent"),fieldCount=$("fieldCount"),beoBadge=$("beoBadge"),rawToggle=$("rawToggle"),rawText=$("rawText");
     const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const LABELS=["BEO #","BEO#","Revision","Date Printed","Opportunity ID","Event Date","Event Day of Week","Event Time","Event Status","Event Guest Count","Event Sales Manager","Event Manager","Event Card#/Party ID","Event Card #/Party ID","Golf Bays","Bartenders","Bay Validation","Buffet Attendant(s)","Catering Location","Booking Type","Event Ambassador(s)","Account","Contact","Email","Phone"];
+    const LABELS=["Revision","Date Printed","Opportunity ID","Event Date","Event Day of Week","Event Time","Event Status","Event Guest Count","Event Sales Manager","Event Manager","Event Card#/Party ID","Event Card #/Party ID","Golf Bays","Bartenders","Bay Validation","Buffet Attendant(s)","Catering Location","Booking Type","Event Ambassador(s)","Account","Contact","Email","Phone","Bay Level Assignment(s)","Wristband Color Assigned","Golf Pro(s) Secured","Tournament Ambassador(s) Secured","Team Building Host(s)","Allergy Notes","Internal Notes"];
     const KNOWN=[
-      ["BEO Number",["BEO #","BEO#"]],["Revision",["Revision"]],["Date Printed",["Date Printed"]],["Opportunity ID",["Opportunity ID"]],
+      ["Revision",["Revision"]],["Date Printed",["Date Printed"]],["Opportunity ID",["Opportunity ID"]],
       ["Account",["Account"]],["Contact",["Contact"]],["Email",["Email"]],["Phone",["Phone"]],
       ["Event Date",["Event Date"]],["Event Day",["Event Day of Week"]],["Event Time",["Event Time"]],["Event Status",["Event Status"]],["Guest Count",["Event Guest Count"]],
       ["Sales Manager",["Event Sales Manager"]],["Event Manager",["Event Manager"]],["Event Card / Party ID",["Event Card#/Party ID","Event Card #/Party ID"]],
       ["Golf Bays",["Golf Bays"]],["Bay Validation",["Bay Validation"]],["Booking Type",["Booking Type"]],["Catering Location",["Catering Location"]],
-      ["Bartenders",["Bartenders"]],["Buffet Attendants",["Buffet Attendant(s)"]],["Event Ambassadors",["Event Ambassador(s)"]]
+      ["Bartenders",["Bartenders"]],["Buffet Attendants",["Buffet Attendant(s)"]],["Event Ambassadors",["Event Ambassador(s)"]],
+      ["Bay Level Assignments",["Bay Level Assignment(s)"]],["Wristband Color",["Wristband Color Assigned"]],["Golf Pros Secured",["Golf Pro(s) Secured"]],
+      ["Tournament Ambassadors Secured",["Tournament Ambassador(s) Secured"]],["Team Building Hosts",["Team Building Host(s)"]],["Allergy Notes",["Allergy Notes"]],["Internal Notes",["Internal Notes"]]
     ];
     const SECTIONS=[
       ["Event",["Event Date","Event Day","Event Time","Event Status","Guest Count","Booking Type","Golf Bays","Bay Validation","Catering Location"]],
       ["Client",["Account","Contact","Email","Phone"]],
       ["Team",["Sales Manager","Event Manager","Bartenders","Buffet Attendants","Event Ambassadors"]],
+      ["Financial",["Beverages Total","Gameplay Total","Subtotal","Taxes","Service Charge","Admin Fee","Total Charges","Total Payments","Outstanding Balance"]],
+      ["Event Notes",["Bay Level Assignments","Wristband Color","Golf Pros Secured","Tournament Ambassadors Secured","Team Building Hosts","Allergy Notes","Important Reminders","Internal Notes"]],
       ["BEO",["BEO Number","Revision","Date Printed","Opportunity ID","Event Card / Party ID","BEO Type","Page Count","Venue"]]
     ];
 
@@ -192,18 +196,66 @@
     }
 
     function parseBeo(lines,text,pages){
-      const fields={},pairs=extractKnownPairs(lines);
-      for(const item of KNOWN){const name=item[0],aliases=item[1];let value=null;for(const alias of aliases){value=pairs.get(norm(alias))||null;if(value)break}if(!value)value=findField(text,aliases);if(value)fields[name]=value}
-      const type=detectType(text);fields["BEO Type"]=type;fields["Page Count"]=String(pages);
-      const venue=extractVenue(lines);if(venue)fields["Venue"]=venue;
+      const fields=extractHeaderFields(lines,text),pairs=extractKnownPairs(lines);
+
+      for(const item of KNOWN){
+        const name=item[0],aliases=item[1];
+        if(fields[name])continue;
+
+        let value=null,foundLabel=false;
+        for(const alias of aliases){
+          const key=norm(alias);
+          if(pairs.has(key)){
+            value=pairs.get(key);
+            foundLabel=true;
+            break;
+          }
+        }
+
+        if(!foundLabel)value=findField(lines,aliases);
+        if(value)fields[name]=value;
+      }
+
+      extractFinancialFields(lines,fields);
+      extractReminderFields(lines,fields);
+
+      const type=detectType(text);
+      fields["BEO Type"]=type;
+      fields["Page Count"]=String(pages);
+
+      const venue=extractVenue(lines);
+      if(venue)fields["Venue"]=venue;
+
       const title=extractTitle(lines,fields),generic=extractGeneric(lines,pairs),extras={};
-      for(const pair of generic){const label=pair[0],value=pair[1],known=KNOWN.some(k=>k[1].some(a=>norm(a)===norm(label)));if(!known&&value&&value.length<=220)extras[label]=value}
-      return{title:title||fields["Account"]||"Event detected",type,fields,extras,detectedCount:Object.values(fields).filter(Boolean).length+Object.values(extras).filter(Boolean).length};
+
+      for(const pair of generic){
+        const label=pair[0],value=pair[1];
+        const known=KNOWN.some(k=>k[1].some(a=>norm(a)===norm(label)));
+        const malformed=/event date|event time|event status|guest count|account|contact|email|phone/i.test(label) && label.length>24;
+        if(!known&&!malformed&&value&&value.length<=220)extras[label]=value;
+      }
+
+      return{
+        title:title||fields["Account"]||"Event detected",
+        type,
+        fields,
+        extras,
+        detectedCount:Object.values(fields).filter(Boolean).length+Object.values(extras).filter(Boolean).length
+      };
     }
 
     function extractKnownPairs(lines){
-      const map=new Map(),alts=LABELS.map(esc).sort((a,b)=>b.length-a.length).join("|"),re=new RegExp("("+alts+")\\s*:\\s*(.*?)(?=(?:"+alts+")\\s*:|$)","gi");
-      for(const line of lines){let m;while((m=re.exec(line))!==null){const key=norm(m[1]),value=clean(m[2]);if(value&&!map.has(key))map.set(key,value)}}
+      const map=new Map(),alts=LABELS.map(esc).sort((a,b)=>b.length-a.length).join("|"),re=new RegExp("("+alts+")[ \\t]*:[ \\t]*(.*?)(?=(?:"+alts+")[ \\t]*:|$)","gi");
+
+      for(const line of lines){
+        re.lastIndex=0;
+        let m;
+        while((m=re.exec(line))!==null){
+          const key=norm(m[1]),value=clean(m[2]);
+          if(!map.has(key))map.set(key,value);
+        }
+      }
+
       return map;
     }
 
@@ -213,9 +265,19 @@
       return Array.from(map.entries()).map(x=>[pretty(x[0]),x[1]]);
     }
 
-    function findField(text,aliases){
-      const stop=LABELS.map(esc).join("|");
-      for(const alias of aliases){const re=new RegExp(esc(alias)+"\\s*:\\s*(.*?)(?=\\s+(?:"+stop+")\\s*:|\\n|$)","i"),m=text.match(re),v=clean((m&&m[1])||"");if(v)return v}
+    function findField(lines,aliases){
+      const alts=LABELS.map(esc).sort((a,b)=>b.length-a.length).join("|");
+
+      for(const line of lines){
+        for(const alias of aliases){
+          const re=new RegExp(esc(alias)+"[ \\t]*:[ \\t]*(.*?)(?=(?:"+alts+")[ \\t]*:|$)","i");
+          const m=line.match(re);
+          if(!m)continue;
+          const value=clean(m[1]);
+          if(value)return value;
+        }
+      }
+
       return null;
     }
 
@@ -240,10 +302,38 @@
     }
 
     function renderSummary(parsed){
-      eventTitle.textContent=parsed.title;beoBadge.textContent=parsed.type;
+      eventTitle.textContent=parsed.title;
+      beoBadge.textContent=parsed.type;
       eventSubtitle.textContent=[parsed.fields["Account"],parsed.fields["Event Date"],parsed.fields["Event Time"]].filter(Boolean).join(" · ")||parsed.type;
-      const list=[["BEO #",parsed.fields["BEO Number"]],["Date",parsed.fields["Event Date"]],["Time",parsed.fields["Event Time"]],["Guests",parsed.fields["Guest Count"]],["Contact",parsed.fields["Contact"]],["Event Manager",parsed.fields["Event Manager"]],["Bays",parsed.fields["Golf Bays"]],["Status",parsed.fields["Event Status"]]];
-      quickGrid.replaceChildren();for(const item of list){if(!item[1])continue;const card=document.createElement("div");card.className="quick-card";const l=document.createElement("div");l.className="quick-label";l.textContent=item[0];const v=document.createElement("div");v.className="quick-value";v.textContent=item[1];card.append(l,v);quickGrid.appendChild(card)}
+
+      const managerValue=parsed.fields["Event Manager"]||parsed.fields["Sales Manager"];
+      const managerLabel=parsed.fields["Event Manager"]?"Event Manager":"Sales Manager";
+
+      const list=[
+        ["BEO #",parsed.fields["BEO Number"]],
+        ["Date",parsed.fields["Event Date"]],
+        ["Time",parsed.fields["Event Time"]],
+        ["Guests",parsed.fields["Guest Count"]],
+        ["Contact",parsed.fields["Contact"]],
+        [managerLabel,managerValue],
+        ["Bays",parsed.fields["Golf Bays"]],
+        ["Status",parsed.fields["Event Status"]]
+      ];
+
+      quickGrid.replaceChildren();
+      for(const item of list){
+        if(!item[1])continue;
+        const card=document.createElement("div");
+        card.className="quick-card";
+        const l=document.createElement("div");
+        l.className="quick-label";
+        l.textContent=item[0];
+        const v=document.createElement("div");
+        v.className="quick-value";
+        v.textContent=item[1];
+        card.append(l,v);
+        quickGrid.appendChild(card);
+      }
     }
 
     function renderDetails(parsed){
