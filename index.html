@@ -1332,7 +1332,7 @@
         grossRow.className="ar-calc-row";
 
         const grossLabel=document.createElement("span");
-        grossLabel.textContent="Additional Revenue Before Minimum";
+        grossLabel.textContent="Additional Revenue Subtotal";
 
         const grossValue=document.createElement("strong");
         grossValue.textContent=formatMoney(comparison.grossTotal);
@@ -1343,7 +1343,7 @@
         deductionRow.className="ar-calc-row deduction";
 
         const deductionLabel=document.createElement("span");
-        deductionLabel.textContent="Less F&B Minimum";
+        deductionLabel.textContent="F&B Minimum";
 
         const deductionValue=document.createElement("strong");
         deductionValue.textContent="−"+formatMoney(comparison.fbMinimum);
