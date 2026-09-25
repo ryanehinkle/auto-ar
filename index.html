@@ -357,7 +357,7 @@
     }
 
     function extractFinancials(lines){
-      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Other Fees":0};
+      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Event Space Rental":0,"Other Fees":0};
       const detected={};
       const otherBreakdown=[];
 
@@ -406,8 +406,9 @@
       const x=label.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 
       if(/\bnon alcoholic\b|\bna beverage\b|\bna beverages\b/.test(x))return"NA";
-      if(/\bfood\b/.test(x)&&!/\bbeverage\b/.test(x))return"Food";
-      if(/\bbeverage\b|\bbar\b|\balcohol\b/.test(x))return"Beverages";
+      if(/\bevent space rental\b|\bspace rental\b/.test(x))return"Event Space Rental";
+      if(/\bfood\b/.test(x)&&!/\bbeverages?\b/.test(x))return"Food";
+      if(/\bbeverages?\b|\bbar\b|\balcohol\b/.test(x))return"Beverages";
       if(/\bgame ?play\b|\bgame\b/.test(x))return"Gameplay";
       if(/\bretail\b|\bmerch/.test(x))return"Retail";
       if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
@@ -459,7 +460,7 @@
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      ["Food","Beverages","NA","Gameplay","Retail","Labor","Other Fees"].forEach(label=>{
+      ["Food","Beverages","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees"].forEach(label=>{
         if(!f.detected[label]&&!(label==="Other Fees"&&f.categories[label]>0))return;
         financeGrid.appendChild(makeFinanceItem(label,formatMoney(f.categories[label]),false,label==="Other Fees"?f.otherBreakdown.join(" · "):""));
       });
