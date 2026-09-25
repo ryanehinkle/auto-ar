@@ -769,6 +769,101 @@
       );
     }
 
+    function extractFlexMinimumFromRawLines(lines){
+      let section="";
+      let total=0;
+      const seen=new Set();
+
+      for(let i=0;i<lines.length;i++){
+        const line=clean(lines[i]);
+        const nextSection=detectProductSection(line);
+
+        if(nextSection){
+          section=nextSection;
+          continue;
+        }
+
+        if(section!=="Beverages"&&section!=="Food")continue;
+
+        const currentHasMinimum=/\bminimum\b/i.test(line);
+        const next=clean(lines[i+1]||"");
+        const next2=clean(lines[i+2]||"");
+
+        let candidate=line;
+
+        if(currentHasMinimum){
+          if(!/USD\s*-?[\d,.]+/i.test(candidate)){
+            candidate=clean(candidate+" "+next);
+          }
+          if(!/USD\s*-?[\d,.]+/i.test(candidate)){
+            candidate=clean(candidate+" "+next2);
+          }
+        }else{
+          continue;
+        }
+
+        const amounts=(candidate.match(/USD\s*-?[\d,.]+/gi)||[])
+          .map(parseMoney)
+          .filter(value=>value!==null&&Math.abs(value)>0.004);
+
+        if(!amounts.length)continue;
+
+        const amount=Math.abs(amounts[amounts.length-1]);
+        const key=i+"|"+amount.toFixed(2);
+
+        if(seen.has(key))continue;
+        seen.add(key);
+        total+=amount;
+      }
+
+      return total;
+    }
+
+    function getFlexBeverageBuckets(lineItems,lines,tags){
+      if(!tags.includes("Flex")){
+        return null;
+      }
+
+      let minimum=0;
+      let na=0;
+
+      for(const item of lineItems){
+        if(item.section!=="Beverages"&&item.section!=="Food")continue;
+
+        const isMinimum=
+          Boolean(item.isFlexMinimum) ||
+          isFlexMinimumText(item.line) ||
+          /\bminimum\b/i.test(item.line);
+
+        const rowTotal=item.printedTotal!==null
+          ? Math.max(0,Number(item.printedTotal)||0)
+          : 0;
+
+        if(isMinimum){
+          minimum+=rowTotal;
+          continue;
+        }
+
+        if(
+          item.section==="Beverages" &&
+          (
+            isEventNABeverageRow(item.line) ||
+            hasNABeverageText(item.line)
+          )
+        ){
+          na+=rowTotal;
+        }
+      }
+
+      const rawMinimum=extractFlexMinimumFromRawLines(lines);
+
+      if(rawMinimum>0.004){
+        minimum=rawMinimum;
+      }
+
+      return{minimum,na};
+    }
+
     function hasNABeverageText(text){
       return(
         /\bn\s*\/\s*a\b/i.test(text) ||
@@ -1086,6 +1181,25 @@
           }else{
             delete detected.Beverages;
           }
+        }
+      }
+
+      const flexBuckets=getFlexBeverageBuckets(lineItems,lines,tags);
+
+      if(flexBuckets){
+        categories["F&B Minimum"]=flexBuckets.minimum;
+        categories.NA=flexBuckets.na;
+
+        if(categories["F&B Minimum"]>0.004){
+          detected["F&B Minimum"]=true;
+        }else{
+          delete detected["F&B Minimum"];
+        }
+
+        if(categories.NA>0.004){
+          detected.NA=true;
+        }else{
+          delete detected.NA;
         }
       }
 
