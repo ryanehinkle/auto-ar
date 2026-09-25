@@ -57,14 +57,19 @@
     .events-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
     .event-card{min-width:0;overflow:hidden;border:1px solid #303036;border-radius:13px;background:#18181b;box-shadow:0 12px 34px rgba(0,0,0,.22);transition:transform .16s ease,border-color .16s ease}
     .event-card:hover{transform:translateY(-2px);border-color:#494951}
-    .event-preview{height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
+    .event-preview{position:relative;height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
     .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
     .event-card-body{padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.65rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
-    .event-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-    .event-tag{padding:4px 7px;border:1px solid #38506a;border-radius:999px;background:#17212c;color:#8eb9e6;font-size:.61rem;font-weight:850;letter-spacing:.055em;text-transform:uppercase}
-    .event-tag.other{border-color:#3a3a42;background:#1d1d21;color:#8b8b95}
+    .event-tags{position:absolute;top:10px;right:10px;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:62%}
+    .event-tag{padding:4px 8px;border:1px solid transparent;border-radius:999px;font-size:.61rem;font-weight:900;letter-spacing:.055em;text-transform:uppercase;box-shadow:0 2px 7px rgba(0,0,0,.12)}
+    .event-tag.buffet{border-color:#95c7f1;background:#dff1ff;color:#245d8d}
+    .event-tag.youth{border-color:#efb1cb;background:#ffe3ef;color:#8d345a}
+    .event-tag.flex{border-color:#9dd7ab;background:#e1f6e6;color:#2f7041}
+    .event-tag.faves,.event-tag.pleaser{border-color:#e5cf79;background:#fff4bf;color:#76620d}
+    .event-tag.field-trip{border-color:#c5b4e8;background:#eee7ff;color:#5e4790}
+    .event-tag.other{border-color:#c8c8cd;background:#ececef;color:#616169}
     .event-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
     .meta-chip{padding:5px 7px;border:1px solid #303038;border-radius:7px;background:#141418;color:#b6b6bf;font-size:.7rem;font-weight:700}
     .finance-wrap{margin-top:14px;padding-top:13px;border-top:1px solid #29292f}
@@ -392,13 +397,22 @@
     function detectEventTags(lines,text){
       const tags=[];
       let section="";
+      let foodItemCount=0;
 
       for(const rawLine of lines){
         const line=clean(rawLine);
         const sectionName=detectProductSection(line);
+
         if(sectionName){
           section=sectionName;
           continue;
+        }
+
+        if(section==="Food"){
+          const foodItem=extractLineItem(line,"Food");
+          if(foodItem&&!/\bTOTAL\b/i.test(line)){
+            foodItemCount++;
+          }
         }
 
         if(section!=="Food"&&section!=="Beverages")continue;
@@ -407,7 +421,13 @@
         if(/\bcrowd\s+pleaser\b/i.test(line)&&!tags.includes("Pleaser"))tags.push("Pleaser");
         if(/\bshareable\s+bites?\b|\bfan\s+faves?\b/i.test(line)&&!tags.includes("Faves"))tags.push("Faves");
         if(/\bflex\b|\bmulti[- ]?bay\s+flex\b/i.test(line)&&!tags.includes("Flex"))tags.push("Flex");
-        if(/\bbuffet\b.*\b(?:package|food|menu)\b|\b(?:package|food|menu)\b.*\bbuffet\b/i.test(line)&&!tags.includes("Buffet"))tags.push("Buffet");
+        if(/\bbuffet\b/i.test(line)&&!tags.includes("Buffet"))tags.push("Buffet");
+      }
+
+      // Buffet BEOs often do not literally say "buffet" in the item names.
+      // Five or more priced food rows is the reliable buffet pattern.
+      if(foodItemCount>=5&&!tags.includes("Buffet")){
+        tags.push("Buffet");
       }
 
       if(/\bfield\s*trip\b/i.test(text)&&!tags.includes("Field Trip"))tags.unshift("Field Trip");
@@ -633,10 +653,12 @@
 
       for(const tagName of p.tags){
         const tag=document.createElement("span");
-        tag.className="event-tag"+(tagName==="Other"?" other":"");
+        tag.className="event-tag "+tagName.toLowerCase().replace(/\s+/g,"-");
         tag.textContent=tagName;
         tags.appendChild(tag);
       }
+
+      preview.appendChild(tags);
 
       const meta=document.createElement("div");
       meta.className="event-meta";
@@ -676,7 +698,7 @@
       button.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
       preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
 
-      body.append(kicker,name,tags,meta,finance,button);
+      body.append(kicker,name,meta,finance,button);
       card.append(preview,body);
       return card;
     }
