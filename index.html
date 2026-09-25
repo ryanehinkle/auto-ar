@@ -1430,6 +1430,8 @@
       // Fallback for OCR engines that preserve each table row cleanly.
       const rows=source.split(/\r?\n/).map(clean).filter(Boolean);
       let totalNetSales=null;
+      let rowLBW=0;
+      let rowLBWCount=0;
 
       for(const row of rows){
         if(/^tota(?:l|1|!)(?:\s|$)/i.test(row)){
@@ -1445,11 +1447,26 @@
         const amounts=extractToastAmounts(row);
         if(!amounts.length)continue;
 
-        // Only fill categories not already recovered from the flattened table.
+        if(category==="LBW"){
+          // Toast splits alcohol into Beer, Liquor, and Wine rows.
+          // Sum EVERY validated row, then use that complete sum instead of
+          // any partial LBW amount recovered by the flattened OCR pass.
+          rowLBW+=amounts[0];
+          rowLBWCount++;
+          recognized.add("LBW");
+          continue;
+        }
+
+        // Only fill other categories not already recovered from the flattened table.
         if(Math.abs(totals[category]||0)<0.005){
           totals[category]+=amounts[0];
         }
         recognized.add(category);
+      }
+
+      if(rowLBWCount>0){
+        totals.LBW=rowLBW;
+        recognized.add("LBW");
       }
 
       if(totalNetSales===null){
