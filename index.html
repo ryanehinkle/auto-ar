@@ -846,10 +846,7 @@
 
         if(
           item.section==="Beverages" &&
-          (
-            isEventNABeverageRow(item.line) ||
-            hasNABeverageText(item.line)
-          )
+          isExplicitFlexNABeverageRow(item.line)
         ){
           na+=rowTotal;
         }
@@ -862,6 +859,19 @@
       }
 
       return{minimum,na};
+    }
+
+    function isExplicitFlexNABeverageRow(text){
+      const x=String(text||"");
+
+      return(
+        /\bevent\s+n\s*\/?\s*a\s+(?:bev|beverage|beverages)\b/i.test(x) ||
+        /\b(?:n\s*\/?\s*a|na)\s+(?:bev|beverage|beverages)\b/i.test(x) ||
+        /\bnon[- ]?alcoholic\b/i.test(x) ||
+        /\bfountain\s+soft\s+drinks?\b/i.test(x) ||
+        /\bsoft\s+drinks?\b/i.test(x) ||
+        /\blemonade\b/i.test(x)
+      );
     }
 
     function hasNABeverageText(text){
@@ -1057,7 +1067,10 @@
         // Minimum always wins over N/A/LBW Toast item labels.
         if(isMinimumRow)continue;
 
-        const isToastNA=isEventNABeverageRow(item.line);
+        const isToastNA=
+          tags.includes("Flex")
+            ? isExplicitFlexNABeverageRow(item.line)
+            : isEventNABeverageRow(item.line);
         const isToastLBW=isEventLBWRow(item.line);
 
         if(!isToastNA&&!isToastLBW)continue;
