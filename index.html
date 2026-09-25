@@ -239,11 +239,31 @@
           return;
         }
 
+        for(const group of groups){
+          group.parsed=parseEvent(group);
+        }
+
+        groups.sort((a,b)=>{
+          const aCard=Number(a.parsed.eventCard);
+          const bCard=Number(b.parsed.eventCard);
+          const aHas=Number.isFinite(aCard);
+          const bHas=Number.isFinite(bCard);
+
+          if(aHas&&bHas)return aCard-bCard;
+          if(aHas)return -1;
+          if(bHas)return 1;
+
+          return String(a.parsed.eventCard||"").localeCompare(
+            String(b.parsed.eventCard||""),
+            undefined,
+            {numeric:true,sensitivity:"base"}
+          );
+        });
+
         let index=0;
         for(const group of groups){
           index++;
-          const parsed=parseEvent(group);
-          group.parsed=parsed;
+          const parsed=group.parsed;
 
           const trimmed=await buildTrimmedEventPdf(sourcePdfLib,group.pageNumbers);
           group.pdfBytes=trimmed;
@@ -322,9 +342,10 @@
       const date=fieldValue(lines,"Event Date");
       const time=fieldValue(lines,"Event Time");
       const guests=fieldValue(lines,"Event Guest Count");
+      const eventCard=extractEventCard(lines);
       const financial=extractFinancials(lines);
 
-      return{name,fullTitle:fullTitle||name,date,time,guests,beoNumber:group.beoNumber,financial};
+      return{name,fullTitle:fullTitle||name,date,time,guests,eventCard,beoNumber:group.beoNumber,financial};
     }
 
     function extractFullEventTitle(lines){
@@ -352,6 +373,14 @@
           const value=clean(m[1]);
           if(value)return value;
         }
+      }
+      return null;
+    }
+
+    function extractEventCard(lines){
+      for(const line of lines){
+        const m=line.match(/EVENT\s*CARD\s*#?\s*\/\s*PARTY\s*ID\s*:\s*([A-Za-z0-9-]+)/i);
+        if(m)return clean(m[1]);
       }
       return null;
     }
@@ -432,7 +461,7 @@
       const kicker=document.createElement("div");
       kicker.className="event-kicker";
       const left=document.createElement("span");
-      left.textContent="Event "+String(index).padStart(2,"0");
+      left.textContent=p.eventCard?"Event "+p.eventCard:"Event "+String(index).padStart(2,"0");
       const right=document.createElement("span");
       right.textContent=group.pdf.numPages+(group.pdf.numPages===1?" page":" pages");
       kicker.append(left,right);
