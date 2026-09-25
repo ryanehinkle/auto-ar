@@ -1886,51 +1886,109 @@
         firstItems.find(item=>/BOOKING TYPE/i.test(item.text));
 
       const pageWidth=firstPage.getWidth();
-      const x=booking?Math.max(42,booking.x):48;
-      const y=booking?booking.y-22:firstPage.getHeight()-220;
-      const maxWidth=Math.max(260,pageWidth-x-48);
+
+      // Center the export annotation beneath the Booking Type / Event Ambassador row.
+      const contentLeft=42;
+      const contentRight=pageWidth-42;
+      const contentWidth=contentRight-contentLeft;
+      const centerX=contentLeft+(contentWidth/2);
+      const y=booking?booking.y-19:firstPage.getHeight()-220;
 
       if(!parsed.arProcessed||!comparison){
-        firstPage.drawText("AR: NOT COMPLETED",{
-          x,
+        const notDone="AR NOT COMPLETED";
+        const size=8.2;
+        const width=bold.widthOfTextAtSize(notDone,size);
+
+        firstPage.drawText(notDone,{
+          x:centerX-(width/2),
           y,
-          size:7,
+          size,
           font:bold,
           color:rgb(0.45,0.45,0.48)
         });
       }else{
         const pieces=comparison.items.map(item=>
-          exportCategoryLabel(item.label)+" "+formatMoney(item.additional)
+          exportCategoryLabel(item.label)+" "+formatSignedMoney(item.additional)
         );
 
-        if(comparison.flexAdjusted){
-          pieces.push("F&B MIN -"+formatMoney(comparison.fbMinimum));
+        let totalY=y;
+
+        // Only show the category line when there are actual AR categories.
+        if(pieces.length){
+          const categoryText=pieces.join("  |  ");
+          const lines=wrapPdfText(bold,categoryText,7.6,contentWidth,2);
+
+          lines.forEach((line,index)=>{
+            const lineWidth=bold.widthOfTextAtSize(line,7.6);
+
+            firstPage.drawText(line,{
+              x:centerX-(lineWidth/2),
+              y:y-(index*10),
+              size:7.6,
+              font:bold,
+              color:rgb(0.10,0.10,0.12)
+            });
+          });
+
+          totalY=y-(lines.length*10)-2;
         }
 
-        const categoryText=pieces.length
-          ? "AR: "+pieces.join("  |  ")
-          : "AR: NONE";
+        const totalLabel="TOTAL AR: ";
+        const green=rgb(0.10,0.44,0.22);
+        const black=rgb(0.10,0.10,0.12);
+        const totalSize=8.4;
 
-        const lines=wrapPdfText(font,categoryText,6.6,maxWidth,2);
+        if(comparison.flexAdjusted){
+          const leftText=
+            totalLabel+
+            formatMoney(comparison.grossTotal)+
+            " - "+
+            formatMoney(comparison.fbMinimum)+
+            " = ";
+          const resultText=formatMoney(comparison.total);
+          const leftWidth=bold.widthOfTextAtSize(leftText,totalSize);
+          const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
+          const totalWidth=leftWidth+resultWidth;
+          const startX=centerX-(totalWidth/2);
 
-        lines.forEach((line,index)=>{
-          firstPage.drawText(line,{
-            x,
-            y:y-(index*9),
-            size:6.6,
-            font:index===0?bold:font,
-            color:rgb(0.12,0.12,0.14)
+          firstPage.drawText(leftText,{
+            x:startX,
+            y:totalY,
+            size:totalSize,
+            font:bold,
+            color:black
           });
-        });
 
-        const totalY=y-(lines.length*9)-1;
-        firstPage.drawText("TOTAL AR: "+formatMoney(comparison.total),{
-          x,
-          y:totalY,
-          size:7.2,
-          font:bold,
-          color:rgb(0.10,0.44,0.22)
-        });
+          firstPage.drawText(resultText,{
+            x:startX+leftWidth,
+            y:totalY,
+            size:totalSize,
+            font:bold,
+            color:green
+          });
+        }else{
+          const leftWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
+          const resultText=formatMoney(comparison.total);
+          const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
+          const totalWidth=leftWidth+resultWidth;
+          const startX=centerX-(totalWidth/2);
+
+          firstPage.drawText(totalLabel,{
+            x:startX,
+            y:totalY,
+            size:totalSize,
+            font:bold,
+            color:black
+          });
+
+          firstPage.drawText(resultText,{
+            x:startX+leftWidth,
+            y:totalY,
+            size:totalSize,
+            font:bold,
+            color:green
+          });
+        }
       }
 
       if(!parsed.arProcessed||!comparison)return;
@@ -1949,14 +2007,13 @@
       const subtotal=billingItems.find(item=>/^Subtotal$/i.test(item.text));
       if(!subtotal)return;
 
-      const taxes=billingItems.find(item=>/^Taxes$/i.test(item.text));
       const paymentSummary=billingItems.find(item=>/^PAYMENT SUMMARY$/i.test(item.text));
-
       const check=comparison.subtotalCheck;
       const pass=Boolean(check&&check.pass);
-      const badgeX=taxes
-        ? Math.max(subtotal.x+25,taxes.x-10)
-        : subtotal.x+70;
+
+      // Keep the indicator inside the left Subtotal cell. The Subtotal label is
+      // centered in that cell, so shifting left places the badge safely inside it.
+      const badgeX=Math.max(12,subtotal.x-34);
       const badgeY=subtotal.y-14;
 
       drawExportCheck(billingPage,badgeX,badgeY,pass);
