@@ -86,6 +86,9 @@
     .finance-item{min-width:0;padding:9px 10px;border:1px solid #2b2b31;border-radius:8px;background:#151519}
     .finance-label{color:#74747e;font-size:.59rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
     .finance-value{margin-top:4px;color:#e6e6ea;font-size:.83rem;font-weight:850}
+    .finance-value-line{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:4px}
+    .finance-original{color:#73737d;font-size:.72rem;font-weight:750;text-decoration:line-through;text-decoration-thickness:1.5px}
+    .finance-discounted{color:#e6e6ea;font-size:.83rem;font-weight:900}
     .other-detail{margin-top:3px;color:#6f6f79;font-size:.6rem;line-height:1.3}
     .finance-summary{margin-top:11px;padding-top:10px;border-top:1px solid #29292f}
     .summary-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:3px 1px;color:#a6a6af;font-size:.7rem}
@@ -122,6 +125,11 @@
     .ar-item.event-space-rental{border-left-color:#b79de7}.ar-item.event-space-rental .ar-item-label{color:#c3aceb}
     .ar-item.other-fees{border-left-color:#d8ae74}.ar-item.other-fees .ar-item-label{color:#dfb982}
     .ar-item.admin-fee{border-left-color:#a9adb5}.ar-item.admin-fee .ar-item-label{color:#b9bdc5}
+    .ar-item.equipment-rental{border-left-color:#7fc5d8}.ar-item.equipment-rental .ar-item-label{color:#93d0df}
+    .ar-item.space-rental{border-left-color:#b79de7}.ar-item.space-rental .ar-item-label{color:#c3aceb}
+    .ar-item.digital-media{border-left-color:#dd9ee7}.ar-item.digital-media .ar-item-label{color:#e5b2ed}
+    .ar-item.unused-fb{border-left-color:#e0b46d}.ar-item.unused-fb .ar-item-label{color:#e6bf82}
+    .ar-item.other{border-left-color:#a8abb2}.ar-item.other .ar-item-label{color:#b9bcc3}
     .ar-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:12px 2px 2px;border-top:1px solid #303740;color:#9ad6ad;font-weight:900}
     .ar-total span{font-size:.86rem}
     .ar-total strong{font-size:1rem;font-weight:950;font-variant-numeric:tabular-nums}
@@ -447,6 +455,10 @@
     }
 
     function detectEventTags(lines,text){
+      if(/\bfield\s*trip\b/i.test(text)){
+        return["Field Trip"];
+      }
+
       const tags=[];
       let section="";
       let foodItemCount=0;
@@ -476,15 +488,11 @@
         if(/\bbuffet\b/i.test(line)&&!tags.includes("Buffet"))tags.push("Buffet");
       }
 
-      // Buffet BEOs often do not literally say "buffet" in the item names.
-      // Five or more priced food rows is the reliable buffet pattern.
       if(foodItemCount>=5&&!tags.includes("Buffet")){
         tags.push("Buffet");
       }
 
-      if(/\bfield\s*trip\b/i.test(text)&&!tags.includes("Field Trip"))tags.unshift("Field Trip");
-
-      const preferred=["Field Trip","Youth","Buffet","Flex","Pleaser","Faves"];
+      const preferred=["Youth","Buffet","Flex","Pleaser","Faves"];
       tags.sort((a,b)=>preferred.indexOf(a)-preferred.indexOf(b));
 
       return tags.length?tags:["Other"];
@@ -499,16 +507,19 @@
       if(normalized==="retail")return"Retail";
       if(normalized==="labor"||normalized==="labour")return"Labor";
       if(normalized==="asset"||normalized==="assets")return"Asset";
-      if(normalized==="event space rental"||normalized==="space rental")return"Event Space Rental";
+      if(normalized==="limited inventory"||normalized==="equipment rental"||normalized==="event equipment rental")return"Equipment Rental";
+      if(normalized==="event space rental"||normalized==="space rental")return"Space Rental";
+      if(normalized==="digital media"||normalized==="marketing partnerships")return"Digital Media";
+      if(normalized==="incentive"||normalized==="incentives")return"Incentives";
 
       return null;
     }
 
     function extractLineItem(line,section){
-      const qtyPrice=line.match(/\b(\d+(?:\.\d+)?)\s+USD\s*([\d,.]+)/i);
+      const qtyPrice=line.match(/\b(\d+(?:\.\d+)?)\s+USD\s*(-?[\d,.]+)/i);
       if(!qtyPrice)return null;
 
-      const amounts=line.match(/USD\s*[\d,.]+/gi)||[];
+      const amounts=line.match(/USD\s*-?[\d,.]+/gi)||[];
       const quantity=Number(qtyPrice[1]);
       const unitPrice=parseMoney(qtyPrice[2]);
       const printedTotal=amounts.length?parseMoney(amounts[amounts.length-1]):null;
@@ -575,13 +586,51 @@
       return total;
     }
 
+    function inferIncentiveTarget(text){
+      const x=String(text||"").toLowerCase();
+
+      if(/\btopgolf\b|\bgame\s*play\b|\bgameplay\b|\bplay\b|\bgame\b/.test(x))return"Gameplay";
+      if(/\bfood\b|\bcatering\b/.test(x))return"Food";
+      if(/\bbeverage\b|\bbar\b|\bdrink\b|\balcohol\b/.test(x))return"Beverages";
+      if(/\bretail\b|\bmerch/.test(x))return"Retail";
+      if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
+      if(/\bequipment\b|\blimited inventory\b/.test(x))return"Equipment Rental";
+      if(/\bdigital\b|\bmedia\b|\bmarketing\b/.test(x))return"Digital Media";
+      if(/\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
+
+      return"Gameplay";
+    }
+
+    function hasNABeverageText(text){
+      return(
+        /\bn\s*\/\s*a\b/i.test(text) ||
+        /\bna\s+(?:bev|beverage|beverages)\b/i.test(text) ||
+        /\bnon[- ]?alcoholic\b/i.test(text)
+      );
+    }
+
     function extractFinancials(lines,tags=[]){
-      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Event Space Rental":0,"F&B Minimum":0,"Other Fees":0};
+      const categories={
+        Food:0,
+        Beverages:0,
+        NA:0,
+        Gameplay:0,
+        Retail:0,
+        Labor:0,
+        "Equipment Rental":0,
+        "Space Rental":0,
+        "Digital Media":0,
+        "F&B Minimum":0,
+        "Other Fees":0
+      };
       const detected={};
       const otherBreakdown=[];
-      const sectionTotals={};
       const lineItems=[];
+      const incentiveRecords=[];
       let section="";
+      let assetHasLeaderboard=false;
+      let incentiveTarget="Gameplay";
+      let incentiveItemCount=0;
 
       for(const rawLine of lines){
         const line=clean(rawLine);
@@ -589,36 +638,92 @@
 
         if(nextSection){
           section=nextSection;
+          if(section==="Asset")assetHasLeaderboard=false;
+          if(section==="Incentives"){
+            incentiveTarget="Gameplay";
+            incentiveItemCount=0;
+          }
           continue;
         }
 
-        const totalMatch=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*([\d,.]+)/i);
+        if(section==="Asset"&&/\blive\s+leaderboard\b/i.test(line)){
+          assetHasLeaderboard=true;
+        }
+
+        if(section==="Incentives"&&!/\bTOTAL\b/i.test(line)){
+          incentiveTarget=inferIncentiveTarget(line);
+          const incentiveItem=extractLineItem(line,section);
+
+          if(incentiveItem){
+            const amount=Math.abs(
+              incentiveItem.printedTotal!==null&&Math.abs(incentiveItem.printedTotal)>0
+                ? incentiveItem.printedTotal
+                : incentiveItem.computedTotal
+            );
+
+            if(amount>0.004){
+              incentiveRecords.push({target:incentiveTarget,amount});
+              incentiveItemCount++;
+            }
+          }
+        }
+
+        const totalMatch=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*(-?[\d,.]+)/i);
+
         if(totalMatch){
           const rawLabel=clean(totalMatch[1]);
-          const amount=parseMoney(totalMatch[2]);
+          const rawAmount=parseMoney(totalMatch[2]);
 
-          if(amount!==null){
-            const category=mapRevenueCategory(rawLabel);
-            categories[category]+=amount;
-            sectionTotals[category]=(sectionTotals[category]||0)+amount;
+          if(rawAmount!==null){
+            const amount=Math.abs(rawAmount);
+
+            if(section==="Incentives"||/\bincentives?\b/i.test(rawLabel)){
+              if(incentiveItemCount===0&&amount>0.004){
+                incentiveRecords.push({
+                  target:incentiveTarget||"Gameplay",
+                  amount
+                });
+              }
+              continue;
+            }
+
+            let category;
+
+            if(section==="Asset"&&assetHasLeaderboard){
+              category="Gameplay";
+            }else if(section==="Equipment Rental"){
+              category="Equipment Rental";
+            }else if(section==="Labor"){
+              category="Labor";
+            }else if(section==="Space Rental"){
+              category="Space Rental";
+            }else if(section==="Digital Media"){
+              category="Digital Media";
+            }else{
+              category=mapRevenueCategory(rawLabel);
+            }
+
+            categories[category]=(categories[category]||0)+amount;
             detected[category]=true;
 
             if(category==="Other Fees"){
               otherBreakdown.push(rawLabel+" "+formatMoney(amount));
             }
           }
+
           continue;
         }
 
-        const item=extractLineItem(line,section);
-        if(item)lineItems.push(item);
+        if(section!=="Incentives"){
+          const item=extractLineItem(line,section);
+          if(item)lineItems.push(item);
+        }
       }
 
       const splitFromParent={Food:0,Beverages:0};
       let youthFood=0;
 
       for(const item of lineItems){
-        const text=item.line.toLowerCase();
         const parent=item.section==="Food"?"Food":item.section==="Beverages"?"Beverages":null;
         if(!parent)continue;
 
@@ -628,12 +733,15 @@
             : item.computedTotal;
 
         const isYouth=/\byouth\b/i.test(item.line);
-        const isNA=/\bnon[- ]?alcoholic\b|\bna\s+beverage\b|\bna\s+bev\b/i.test(item.line);
+        const isNA=hasNABeverageText(item.line);
         const isFlex=/\bflex\b|\bmulti[- ]?bay\s+flex\b/i.test(item.line);
-        const isMinimum=isFlex&&/\bminimum\b|\bf\s*&\s*b\s+minimum\b|\bfood\s*&\s*beverage\s+minimum\b/i.test(item.line);
+        const isMinimum=isFlex&&(
+          /\bminimum\b/i.test(item.line) ||
+          /\bf\s*&\s*b\s+minimum\b/i.test(item.line) ||
+          /\bfood\s*&\s*beverage\s+minimum\b/i.test(item.line)
+        );
 
         if(isYouth){
-          // Youth product lines under BOTH Food and Beverages are treated as Food.
           youthFood+=item.computedTotal;
           if(item.printedTotal!==null&&item.printedTotal>0){
             splitFromParent[parent]+=item.printedTotal;
@@ -644,6 +752,7 @@
         if(isMinimum){
           categories["F&B Minimum"]+=normalAmount;
           detected["F&B Minimum"]=true;
+
           if(item.printedTotal!==null&&item.printedTotal>0){
             splitFromParent[parent]+=item.printedTotal;
           }
@@ -653,6 +762,7 @@
         if(isNA){
           categories.NA+=normalAmount;
           detected.NA=true;
+
           if(item.printedTotal!==null&&item.printedTotal>0){
             splitFromParent[parent]+=item.printedTotal;
           }
@@ -663,14 +773,10 @@
         const robustYouthFood=extractYouthFoodTotal(lines);
 
         if(robustYouthFood>0){
-          // Youth package rule: the qualifying Youth Food + Youth Beverage
-          // product rows are all treated as Food, using qty × unit price.
           categories.Food=robustYouthFood;
           detected.Food=true;
-
           categories.Beverages=0;
           delete detected.Beverages;
-
           categories.NA=0;
           delete detected.NA;
         }else if(youthFood>0){
@@ -695,11 +801,29 @@
         }
       }
 
-      const billingHeaderIndex=lines.findIndex(l=>/^\s*Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges\s*$/i.test(l));
+      const originalCategories={...categories};
+      const incentiveAdjustments={};
+
+      for(const incentive of incentiveRecords){
+        const target=incentive.target||"Gameplay";
+        const amount=Math.abs(Number(incentive.amount||0));
+        if(amount<0.005)continue;
+
+        const current=Number(categories[target]||0);
+        if(current<=0)continue;
+
+        incentiveAdjustments[target]=(incentiveAdjustments[target]||0)+amount;
+        categories[target]=Math.max(0,current-amount);
+        detected[target]=true;
+      }
+
+      const billingHeaderIndex=lines.findIndex(
+        l=>/^\s*Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges\s*$/i.test(l)
+      );
       let subtotal=null,taxes=null,serviceCharge=null,adminFee=null,totalCharges=null;
 
       if(billingHeaderIndex>=0&&lines[billingHeaderIndex+1]){
-        const amounts=(lines[billingHeaderIndex+1].match(/USD\s*[\d,.]+/gi)||[]).map(parseMoney);
+        const amounts=(lines[billingHeaderIndex+1].match(/USD\s*-?[\d,.]+/gi)||[]).map(parseMoney);
         subtotal=amounts[0]??null;
         taxes=amounts[1]??null;
         serviceCharge=amounts[2]??null;
@@ -710,15 +834,17 @@
       let payments=null,outstanding=null;
 
       for(const line of lines){
-        let m=line.match(/^Total Payments\s+USD\s*([\d,.]+)/i);
+        let m=line.match(/^Total Payments\s+USD\s*(-?[\d,.]+)/i);
         if(m)payments=parseMoney(m[1]);
 
-        m=line.match(/^Total Outstanding Balance\s+USD\s*([\d,.]+)/i);
+        m=line.match(/^Total Outstanding Balance\s+USD\s*(-?[\d,.]+)/i);
         if(m)outstanding=parseMoney(m[1]);
       }
 
       return{
         categories,
+        originalCategories,
+        incentiveAdjustments,
         detected,
         otherBreakdown,
         subtotal,
@@ -735,10 +861,12 @@
       const x=label.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 
       if(/\bnon alcoholic\b|\bna beverage\b|\bna beverages\b/.test(x))return"NA";
-      if(/\bevent space rental\b|\bspace rental\b/.test(x))return"Event Space Rental";
+      if(/\bequipment rental\b|\blimited inventory\b/.test(x))return"Equipment Rental";
+      if(/\bevent space rental\b|\bspace rental\b/.test(x))return"Space Rental";
+      if(/\bdigital media\b|\bmarketing partnerships?\b/.test(x))return"Digital Media";
       if(/\bfood\b/.test(x)&&!/\bbeverages?\b/.test(x))return"Food";
       if(/\bbeverages?\b|\bbar\b|\balcohol\b/.test(x))return"Beverages";
-      if(/\bgame ?play\b|\bgame\b/.test(x))return"Gameplay";
+      if(/\bgame ?play\b|\bgame enhancement\b|\bgame\b/.test(x))return"Gameplay";
       if(/\bretail\b|\bmerch/.test(x))return"Retail";
       if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
       return"Other Fees";
@@ -811,19 +939,27 @@
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Event Space Rental","Other Fees"];
+      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Equipment Rental","Space Rental","Digital Media","Other Fees"];
       const revenueItems=revenueOrder
         .map(label=>({
           label,
           value:Number(f.categories[label]||0),
-          detail:label==="Other Fees"?f.otherBreakdown.join(" · "):""
+          detail:label==="Other Fees"?f.otherBreakdown.join(" · "):"",
+          originalValue:Number(f.originalCategories?.[label]??f.categories[label]??0),
+          incentive:Number(f.incentiveAdjustments?.[label]||0)
         }))
         .filter(item=>item.value>0.004)
         .sort((a,b)=>b.value-a.value);
 
       for(const item of revenueItems){
         financeGrid.appendChild(
-          makeFinanceItem(item.label,formatMoney(item.value),false,item.detail)
+          makeFinanceItem(
+            item.label,
+            formatMoney(item.value),
+            false,
+            item.detail,
+            item.incentive>0.004?formatMoney(item.originalValue):null
+          )
         );
       }
 
@@ -1117,7 +1253,10 @@
         Gameplay:0,
         Retail:0,
         Labor:0,
-        "Event Space Rental":0,
+        "Equipment Rental":0,
+        "Space Rental":0,
+        "Digital Media":0,
+        Fees:0,
         "Other Fees":0,
         "Admin Fee":0
       };
@@ -1132,11 +1271,14 @@
       const categories=[
         {label:"Food",patterns:[/\bFood\b/i]},
         {label:"Gameplay",patterns:[/\bGame\s*Play\b/i,/\bGameplay\b/i]},
-        {label:"Event Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
+        {label:"Equipment Rental",patterns:[/\bEvent\s*[-–—]?\s*Equipment\s+Rental\b/i,/\bEquipment\s+Rental\b/i]},
+        {label:"Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
+        {label:"Digital Media",patterns:[/\bMarketing\s+Partnerships?\b/i,/\bDigital\s+Media\b/i]},
+        {label:"Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i,/\bFees?\b/i]},
         {label:"NA",patterns:[/\bN\s*\/?\s*A\s*Bev\b/i,/\bNA\s*Bev\b/i,/\bNon[- ]?Alcoholic\b/i]},
         {label:"Admin Fee",patterns:[/\bAdmin\s+Fee\b/i]},
         {label:"Retail",patterns:[/\bRetail\b/i]},
-        {label:"Labor",patterns:[/\bLabou?r\b/i]},
+        {label:"Labor",patterns:[/\bEvent\s*[-–—]?\s*Labou?r\b/i,/\bLabou?r\b/i]},
         {label:"Beer",patterns:[/\bBeer\b/i]},
         {label:"Liquor",patterns:[/\bLiquor\b/i]},
         {label:"Wine",patterns:[/\bWine\b/i]},
@@ -1177,7 +1319,7 @@
         if(hit.label==="Beer"||hit.label==="Liquor"||hit.label==="Wine"){
           totals.LBW+=netSales;
           recognized.add("LBW");
-        }else if(hit.label==="Events Fees"||hit.label==="Coach"||hit.label==="Marketing Partnerships"){
+        }else if(hit.label==="Coach"){
           totals["Other Fees"]+=netSales;
           recognized.add("Other Fees");
         }else{
@@ -1234,15 +1376,13 @@
       if(/^food\b/.test(x))return"Food";
       if(/^game\s*play\b|^gameplay\b/.test(x))return"Gameplay";
       if(/^retail\b/.test(x))return"Retail";
-      if(/^labor\b|^labour\b/.test(x))return"Labor";
-      if(/^event\s*-\s*space\s*rental\b|^event\s+space\s+rental\b|^space\s+rental\b/.test(x))return"Event Space Rental";
+      if(/^event\s*-\s*labou?r\b|^labou?r\b/.test(x))return"Labor";
+      if(/^event\s*-\s*equipment\s+rental\b|^equipment\s+rental\b/.test(x))return"Equipment Rental";
+      if(/^event\s*-\s*space\s+rental\b|^event\s+space\s+rental\b|^space\s+rental\b/.test(x))return"Space Rental";
+      if(/^marketing\s+partnerships?\b|^digital\s+media\b/.test(x))return"Digital Media";
+      if(/^events?\s*-\s*fees?\b|^events?\s+fees?\b|^fees?\b/.test(x))return"Fees";
       if(/^admin\s*fee\b/.test(x))return"Admin Fee";
-
-      if(
-        /^events?\s*-\s*fees?\b/.test(x)||
-        /^coach\b/.test(x)||
-        /^marketing\s+partnerships?\b/.test(x)
-      )return"Other Fees";
+      if(/^coach\b/.test(x))return"Other Fees";
 
       return null;
     }
@@ -1291,14 +1431,20 @@
         Gameplay:Number(financial.categories.Gameplay||0),
         Retail:Number(financial.categories.Retail||0),
         Labor:Number(financial.categories.Labor||0),
-        "Event Space Rental":Number(financial.categories["Event Space Rental"]||0),
+        "Equipment Rental":Number(financial.categories["Equipment Rental"]||0),
+        "Space Rental":Number(financial.categories["Space Rental"]||0),
+        "Digital Media":Number(financial.categories["Digital Media"]||0),
         "Other Fees":Number(financial.categories["Other Fees"]||0),
         "Admin Fee":Number(financial.adminFee||0)
       };
 
       const items=[];
       const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
-      const expectedLabels=["Food","LBW","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees","Admin Fee"];
+      const expectedLabels=[
+        "Food","LBW","NA","Gameplay","Retail","Labor",
+        "Equipment Rental","Space Rental","Digital Media",
+        "Other Fees","Admin Fee"
+      ];
 
       for(const label of expectedLabels){
         if(!recognized.has(label))continue;
@@ -1312,12 +1458,27 @@
         }
       }
 
+      const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
+
+      if(recognized.has("Fees")){
+        const feeAmount=Number(toast.Fees||0);
+
+        if(feeAmount>0.004){
+          items.push({
+            label:isFlex?"Unused F&B":"Other",
+            actual:feeAmount,
+            contracted:0,
+            additional:feeAmount
+          });
+        }
+      }
+
       items.sort((a,b)=>b.additional-a.additional);
 
       const grossTotal=items.reduce((sum,item)=>sum+item.additional,0);
-      const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
       const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
       const total=isFlex?Math.max(0,grossTotal-fbMinimum):grossTotal;
+
       const toastTotalNetSales=
         toast.__totalNetSales!==null &&
         toast.__totalNetSales!==undefined &&
@@ -1487,7 +1648,11 @@
         Gameplay:"gameplay",
         Retail:"retail",
         Labor:"labor",
-        "Event Space Rental":"event-space-rental",
+        "Equipment Rental":"equipment-rental",
+        "Space Rental":"space-rental",
+        "Digital Media":"digital-media",
+        "Unused F&B":"unused-fb",
+        Other:"other",
         "Other Fees":"other-fees",
         "Admin Fee":"admin-fee"
       };
@@ -1510,16 +1675,34 @@
       }
     }
 
-    function makeFinanceItem(label,value,total,detail){
+    function makeFinanceItem(label,value,total,detail,originalValue=null){
       const item=document.createElement("div");
       item.className="finance-item";
+
       const l=document.createElement("div");
       l.className="finance-label";
       l.textContent=label;
-      const v=document.createElement("div");
-      v.className="finance-value";
-      v.textContent=value;
-      item.append(l,v);
+
+      if(originalValue){
+        const valueLine=document.createElement("div");
+        valueLine.className="finance-value-line";
+
+        const original=document.createElement("span");
+        original.className="finance-original";
+        original.textContent=originalValue;
+
+        const discounted=document.createElement("span");
+        discounted.className="finance-discounted";
+        discounted.textContent=value;
+
+        valueLine.append(original,discounted);
+        item.append(l,valueLine);
+      }else{
+        const v=document.createElement("div");
+        v.className="finance-value";
+        v.textContent=value;
+        item.append(l,v);
+      }
 
       if(detail){
         const d=document.createElement("div");
@@ -1527,6 +1710,7 @@
         d.textContent=detail;
         item.appendChild(d);
       }
+
       return item;
     }
 
