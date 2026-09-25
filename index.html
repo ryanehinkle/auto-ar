@@ -601,9 +601,84 @@
       if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
       if(/\bequipment\b|\blimited inventory\b/.test(x))return"Equipment Rental";
       if(/\bdigital\b|\bmedia\b|\bmarketing\b/.test(x))return"Digital Media";
-      if(/\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
+      if(/\broom\s+rental\b|\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
 
       return"Gameplay";
+    }
+
+    function extractIncentiveRecords(lines){
+      const records=[];
+      const seen=new Set();
+      let inIncentives=false;
+      const body=[];
+
+      for(let i=0;i<lines.length;i++){
+        const line=clean(lines[i]);
+        const section=detectProductSection(line);
+
+        if(section==="Incentives"){
+          inIncentives=true;
+          continue;
+        }
+
+        if(inIncentives){
+          if(
+            (section&&section!=="Incentives") ||
+            /^(?:BILLING SUMMARY|PAYMENT SUMMARY|EVENT NOTES|IMPORTANT REMINDERS|INTERNAL NOTES)\\b/i.test(line)
+          ){
+            break;
+          }
+
+          body.push(line);
+        }
+      }
+
+      for(let i=0;i<body.length;i++){
+        if(!/\\bincentive\\b|\\bdiscount\\b|\\bcredit\\b/i.test(body[i]))continue;
+
+        const windowLines=[body[i]];
+
+        for(let j=i+1;j<Math.min(body.length,i+3);j++){
+          if(/\\bincentive\\b|\\bdiscount\\b|\\bcredit\\b/i.test(body[j]))break;
+          if(/\\bTOTAL\\b/i.test(body[j]))break;
+          windowLines.push(body[j]);
+        }
+
+        const windowText=clean(windowLines.join(" "));
+        const negativeAmounts=[
+          ...windowText.matchAll(/USD\\s*-\\s*([\\d,.]+)/gi)
+        ].map(match=>parseMoney(match[1])).filter(value=>value!==null);
+
+        if(!negativeAmounts.length)continue;
+
+        const amount=Math.abs(negativeAmounts[negativeAmounts.length-1]);
+        if(amount<0.005)continue;
+
+        const target=inferIncentiveTarget(windowText);
+        const key=target+"|"+amount.toFixed(2)+"|"+i;
+
+        if(seen.has(key))continue;
+        seen.add(key);
+        records.push({target,amount});
+      }
+
+      // Fallback: if rows were extracted unusually and the specific incentive
+      // rows could not be reconstructed, use the section total as Gameplay.
+      // Only do this when there were NO identifiable rows.
+      if(!records.length){
+        for(const line of body){
+          const m=line.match(/^Incentives?\\s+TOTAL\\s*:\\s*USD\\s*-?([\\d,.]+)/i);
+          if(!m)continue;
+
+          const amount=Math.abs(parseMoney(m[1])||0);
+          if(amount>0.004){
+            records.push({target:"Gameplay",amount});
+          }
+          break;
+        }
+      }
+
+      return records;
     }
 
     function hasNABeverageText(text){
@@ -631,11 +706,9 @@
       const detected={};
       const otherBreakdown=[];
       const lineItems=[];
-      const incentiveRecords=[];
+      const incentiveRecords=extractIncentiveRecords(lines);
       let section="";
       let assetHasLeaderboard=false;
-      let incentiveTarget="Gameplay";
-      let incentiveItemCount=0;
 
       for(const rawLine of lines){
         const line=clean(rawLine);
@@ -644,33 +717,11 @@
         if(nextSection){
           section=nextSection;
           if(section==="Asset")assetHasLeaderboard=false;
-          if(section==="Incentives"){
-            incentiveTarget="Gameplay";
-            incentiveItemCount=0;
-          }
           continue;
         }
 
         if(section==="Asset"&&/\blive\s+leaderboard\b/i.test(line)){
           assetHasLeaderboard=true;
-        }
-
-        if(section==="Incentives"&&!/\bTOTAL\b/i.test(line)){
-          incentiveTarget=inferIncentiveTarget(line);
-          const incentiveItem=extractLineItem(line,section);
-
-          if(incentiveItem){
-            const amount=Math.abs(
-              incentiveItem.printedTotal!==null&&Math.abs(incentiveItem.printedTotal)>0
-                ? incentiveItem.printedTotal
-                : incentiveItem.computedTotal
-            );
-
-            if(amount>0.004){
-              incentiveRecords.push({target:incentiveTarget,amount});
-              incentiveItemCount++;
-            }
-          }
         }
 
         const totalMatch=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*(-?[\d,.]+)/i);
@@ -683,12 +734,6 @@
             const amount=Math.abs(rawAmount);
 
             if(section==="Incentives"||/\bincentives?\b/i.test(rawLabel)){
-              if(incentiveItemCount===0&&amount>0.004){
-                incentiveRecords.push({
-                  target:incentiveTarget||"Gameplay",
-                  amount
-                });
-              }
               continue;
             }
 
@@ -723,6 +768,22 @@
           const item=extractLineItem(line,section);
           if(item)lineItems.push(item);
         }
+      }
+
+      for(const rawLine of lines){
+        const line=clean(rawLine);
+        const m=line.match(
+          /^(Food|Beverages?|Gameplay|Game\\s*Enhancement|Retail|Labor|Limited\\s+Inventory|Equipment\\s+Rental|Event\\s+Space\\s+Rental|Space\\s+Rental|Digital\\s+Media)\\s+TOTAL\\s*:\\s*USD\\s*(-?[\\d,.]+)/i
+        );
+
+        if(!m)continue;
+
+        const rawLabel=clean(m[1]);
+        const amount=Math.abs(parseMoney(m[2])||0);
+        const category=mapRevenueCategory(rawLabel);
+
+        categories[category]=amount;
+        detected[category]=true;
       }
 
       const splitFromParent={Food:0,Beverages:0};
@@ -957,7 +1018,7 @@
           originalValue:Number(f.originalCategories?.[label]??f.categories[label]??0),
           incentive:Number(f.incentiveAdjustments?.[label]||0)
         }))
-        .filter(item=>item.value>0.004)
+        .filter(item=>item.value>0.004||item.incentive>0.004)
         .sort((a,b)=>b.value-a.value);
 
       for(const item of revenueItems){
@@ -1724,6 +1785,11 @@
 
         valueLine.append(original,discounted);
         item.append(l,valueLine);
+
+        const note=document.createElement("div");
+        note.className="other-detail";
+        note.textContent="After incentive";
+        item.appendChild(note);
       }else{
         const v=document.createElement("div");
         v.className="finance-value";
