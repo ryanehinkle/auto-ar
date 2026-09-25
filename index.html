@@ -593,24 +593,28 @@
     }
 
     function inferIncentiveTarget(text){
+      return incentiveTargetFromText(text)||"Gameplay";
+    }
+
+    function incentiveTargetFromText(text){
       const x=String(text||"").toLowerCase();
 
-      if(/\broom\s+rental\b|\bspace\b.*\brental\b|\brental\b.*\bspace\b/.test(x))return"Space Rental";
+      if(/\broom\s+rental\b|\bspace\s+rental\b/.test(x))return"Space Rental";
       if(/\bequipment\b|\blimited inventory\b/.test(x))return"Equipment Rental";
-      if(/\bdigital\b|\bmedia\b|\bmarketing\b/.test(x))return"Digital Media";
+      if(/\bdigital\s+media\b|\bmarketing\b/.test(x))return"Digital Media";
       if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
       if(/\bretail\b|\bmerch/.test(x))return"Retail";
       if(/\bbeverage\b|\bbar\b|\bdrink\b|\balcohol\b/.test(x))return"Beverages";
       if(/\bfood\b|\bcatering\b/.test(x))return"Food";
-      if(/\btopgolf\b|\bgame\s*play\b|\bgameplay\b|\bplay\b|\bgame\b/.test(x))return"Gameplay";
+      if(/\bgame\s*play\b|\bgameplay\b|\btopgolf\b|\bplay\b|\bgame\b/.test(x))return"Gameplay";
 
-      return"Gameplay";
+      return null;
     }
 
     function extractIncentiveRecords(lines){
       const records=[];
-      const seenRows=new Set();
       let inIncentives=false;
+      let pendingTarget=null;
 
       for(let i=0;i<lines.length;i++){
         const line=clean(lines[i]);
@@ -628,49 +632,33 @@
           break;
         }
 
-        // Never use the section total as a category incentive.
+        // The section total is only a reconciliation number.
+        // It never belongs to a single contracted category.
         if(/\bIncentives?\s+TOTAL\b/i.test(line)){
           break;
         }
 
-        // Incentive rows are normally extracted as one horizontal line.
-        // If the row wraps, append only the immediately following line,
-        // but never cross into another incentive row or the TOTAL row.
-        let rowText=line;
-
-        if(/\bincentive\b/i.test(line)){
-          const next=clean(lines[i+1]||"");
-
-          if(
-            next &&
-            !/\bincentive\b/i.test(next) &&
-            !/\bIncentives?\s+TOTAL\b/i.test(next)
-          ){
-            rowText=clean(line+" "+next);
-          }
-        }else{
-          continue;
+        const explicitTarget=incentiveTargetFromText(line);
+        if(explicitTarget){
+          pendingTarget=explicitTarget;
         }
 
         const negativeAmounts=[
-          ...rowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
+          ...line.matchAll(/USD\s*-\s*([\d,.]+)/gi)
         ].map(match=>Math.abs(parseMoney(match[1])||0))
          .filter(amount=>amount>0.004);
 
         if(!negativeAmounts.length)continue;
 
-        // The last negative amount on the row is the row TOTAL.
-        // Example:
-        // Gameplay: USD -2.00 ... USD -60.00  -> use 60
-        // Room Rental: USD -135.00 ... USD -135.00 -> use 135
+        // The far-right / last negative USD value on this extracted row
+        // is the incentive row TOTAL. Unit discounts can appear before it.
         const amount=negativeAmounts[negativeAmounts.length-1];
-        const target=inferIncentiveTarget(rowText);
+        const target=explicitTarget||pendingTarget;
 
-        const rowKey=i+"|"+target+"|"+amount.toFixed(2);
-        if(seenRows.has(rowKey))continue;
-        seenRows.add(rowKey);
+        if(!target)continue;
 
         records.push({target,amount});
+        pendingTarget=null;
       }
 
       return records;
