@@ -608,7 +608,8 @@
     }
 
     function extractIncentiveRecords(lines){
-      const body=[];
+      const records=[];
+      const seenRows=new Set();
       let inIncentives=false;
 
       for(let i=0;i<lines.length;i++){
@@ -621,189 +622,55 @@
           continue;
         }
 
-        // Once inside Incentives, do NOT use generic product-section detection
-        // to decide when the section ends. Words like "Gameplay" and
-        // "Room Rental" are legitimate cells inside incentive rows.
         if(
           /^(?:BILLING SUMMARY|PAYMENT SUMMARY|EVENT NOTES|IMPORTANT REMINDERS|INTERNAL NOTES)\b/i.test(line)
         ){
           break;
         }
 
-        body.push(line);
-
-        // The Incentives TOTAL row is the true end of this section.
+        // Never use the section total as a category incentive.
         if(/\bIncentives?\s+TOTAL\b/i.test(line)){
           break;
         }
-      }
 
-      if(!body.length)return[];
+        // Incentive rows are normally extracted as one horizontal line.
+        // If the row wraps, append only the immediately following line,
+        // but never cross into another incentive row or the TOTAL row.
+        let rowText=line;
 
-      const flat=clean(body.join(" "));
-      const records=[];
-      const seen=new Set();
+        if(/\bincentive\b/i.test(line)){
+          const next=clean(lines[i+1]||"");
 
-      const specs=[
-        {
-          target:"Space Rental",
-          patterns:[
-            /\broom\s+rental\b[^]{0,120}?\bincentive\b/gi,
-            /\bspace\s+rental\b[^]{0,120}?\bincentive\b/gi,
-            /\bincentive\b[^]{0,80}?\broom\s+rental\b/gi
-          ]
-        },
-        {
-          target:"Gameplay",
-          patterns:[
-            /\bgame\s*play\b[^]{0,120}?\bincentive\b/gi,
-            /\bgameplay\b[^]{0,120}?\bincentive\b/gi,
-            /\btopgolf\b[^]{0,120}?\bincentive\b/gi,
-            /\bincentive\b[^]{0,80}?\bgame\s*play\b/gi,
-            /\bincentive\b[^]{0,80}?\bgameplay\b/gi
-          ]
-        },
-        {
-          target:"Equipment Rental",
-          patterns:[
-            /\bequipment\b[^]{0,120}?\bincentive\b/gi,
-            /\blimited\s+inventory\b[^]{0,120}?\bincentive\b/gi
-          ]
-        },
-        {
-          target:"Digital Media",
-          patterns:[
-            /\bdigital\s+media\b[^]{0,120}?\bincentive\b/gi,
-            /\bmarketing\b[^]{0,120}?\bincentive\b/gi
-          ]
-        },
-        {
-          target:"Labor",
-          patterns:[
-            /\blabou?r\b[^]{0,120}?\bincentive\b/gi,
-            /\bstaff\b[^]{0,120}?\bincentive\b/gi
-          ]
-        },
-        {
-          target:"Retail",
-          patterns:[
-            /\bretail\b[^]{0,120}?\bincentive\b/gi,
-            /\bmerch(?:andise)?\b[^]{0,120}?\bincentive\b/gi
-          ]
-        },
-        {
-          target:"Beverages",
-          patterns:[
-            /\bbeverages?\b[^]{0,120}?\bincentive\b/gi,
-            /\bbar\b[^]{0,120}?\bincentive\b/gi,
-            /\balcohol\b[^]{0,120}?\bincentive\b/gi
-          ]
-        },
-        {
-          target:"Food",
-          patterns:[
-            /\bfood\b[^]{0,120}?\bincentive\b/gi,
-            /\bcatering\b[^]{0,120}?\bincentive\b/gi
-          ]
-        }
-      ];
-
-      const markers=[];
-
-      for(const spec of specs){
-        for(const re of spec.patterns){
-          re.lastIndex=0;
-          let match;
-
-          while((match=re.exec(flat))!==null){
-            markers.push({
-              target:spec.target,
-              index:match.index,
-              end:match.index+match[0].length
-            });
+          if(
+            next &&
+            !/\bincentive\b/i.test(next) &&
+            !/\bIncentives?\s+TOTAL\b/i.test(next)
+          ){
+            rowText=clean(line+" "+next);
           }
-        }
-      }
-
-      markers.sort((a,b)=>a.index-b.index);
-
-      // Collapse duplicate markers for the same logical row. PDF text often
-      // repeats the category in Product Name + Toast Item Name.
-      const compact=[];
-
-      for(const marker of markers){
-        const last=compact[compact.length-1];
-
-        if(
-          last &&
-          last.target===marker.target &&
-          marker.index-last.index<120
-        ){
-          last.end=Math.max(last.end,marker.end);
+        }else{
           continue;
         }
 
-        compact.push({...marker});
-      }
-
-      const totalIndex=flat.search(/\bIncentives?\s+TOTAL\b/i);
-
-      for(let i=0;i<compact.length;i++){
-        const marker=compact[i];
-        const next=compact[i+1];
-        let segmentEnd=next?next.index:flat.length;
-
-        if(totalIndex>=0&&totalIndex>marker.end){
-          segmentEnd=Math.min(segmentEnd,totalIndex);
-        }
-
-        const segment=flat.slice(marker.end,segmentEnd);
         const negativeAmounts=[
-          ...segment.matchAll(/USD\s*-\s*([\d,.]+)/gi)
+          ...rowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
         ].map(match=>Math.abs(parseMoney(match[1])||0))
          .filter(amount=>amount>0.004);
 
         if(!negativeAmounts.length)continue;
 
-        // Last negative USD amount before the next incentive row is the row total.
+        // The last negative amount on the row is the row TOTAL.
+        // Example:
+        // Gameplay: USD -2.00 ... USD -60.00  -> use 60
+        // Room Rental: USD -135.00 ... USD -135.00 -> use 135
         const amount=negativeAmounts[negativeAmounts.length-1];
-        const key=marker.target+"|"+amount.toFixed(2);
+        const target=inferIncentiveTarget(rowText);
 
-        if(seen.has(key))continue;
-        seen.add(key);
+        const rowKey=i+"|"+target+"|"+amount.toFixed(2);
+        if(seenRows.has(rowKey))continue;
+        seenRows.add(rowKey);
 
-        records.push({
-          target:marker.target,
-          amount,
-          source:segment
-        });
-      }
-
-      // Extra row-oriented fallback for PDFs where the category word and
-      // negative total survive together on one extracted line.
-      for(let i=0;i<body.length;i++){
-        if(/\bIncentives?\s+TOTAL\b/i.test(body[i]))continue;
-
-        const windowText=clean(
-          [body[i-1]||"",body[i],body[i+1]||""].join(" ")
-        );
-
-        if(!/\bincentive\b/i.test(windowText))continue;
-
-        const negativeAmounts=[
-          ...windowText.matchAll(/USD\s*-\s*([\d,.]+)/gi)
-        ].map(match=>Math.abs(parseMoney(match[1])||0))
-         .filter(amount=>amount>0.004);
-
-        if(!negativeAmounts.length)continue;
-
-        const target=inferIncentiveTarget(windowText);
-        const amount=negativeAmounts[negativeAmounts.length-1];
-        const key=target+"|"+amount.toFixed(2);
-
-        if(seen.has(key))continue;
-        seen.add(key);
-        records.push({target,amount,source:windowText});
+        records.push({target,amount});
       }
 
       return records;
