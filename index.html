@@ -1274,17 +1274,15 @@
         {label:"Equipment Rental",patterns:[/\bEvent\s*[-–—]?\s*Equipment\s+Rental\b/i,/\bEquipment\s+Rental\b/i]},
         {label:"Space Rental",patterns:[/\bEvent\s*[-–—]?\s*Space\s+Rental\b/i,/\bSpace\s+Rental\b/i]},
         {label:"Digital Media",patterns:[/\bMarketing\s+Partnerships?\b/i,/\bDigital\s+Media\b/i]},
-        {label:"Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i,/\bFees?\b/i]},
-        {label:"NA",patterns:[/\bN\s*\/?\s*A\s*Bev\b/i,/\bNA\s*Bev\b/i,/\bNon[- ]?Alcoholic\b/i]},
         {label:"Admin Fee",patterns:[/\bAdmin\s+Fee\b/i]},
+        {label:"Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i,/(?<!Admin )\bFees?\b/i]},
+        {label:"NA",patterns:[/\bN\s*\/?\s*A\s*Bev\b/i,/\bNA\s*Bev\b/i,/\bNon[- ]?Alcoholic\b/i]},
         {label:"Retail",patterns:[/\bRetail\b/i]},
         {label:"Labor",patterns:[/\bEvent\s*[-–—]?\s*Labou?r\b/i,/\bLabou?r\b/i]},
         {label:"Beer",patterns:[/\bBeer\b/i]},
         {label:"Liquor",patterns:[/\bLiquor\b/i]},
         {label:"Wine",patterns:[/\bWine\b/i]},
-        {label:"Events Fees",patterns:[/\bEvents?\s*[-–—]?\s*Fees?\b/i]},
-        {label:"Coach",patterns:[/\bCoach\b/i]},
-        {label:"Marketing Partnerships",patterns:[/\bMarketing\s+Partnerships?\b/i]}
+        {label:"Coach",patterns:[/\bCoach\b/i]}
       ];
 
       const hits=[];
@@ -1380,8 +1378,8 @@
       if(/^event\s*-\s*equipment\s+rental\b|^equipment\s+rental\b/.test(x))return"Equipment Rental";
       if(/^event\s*-\s*space\s+rental\b|^event\s+space\s+rental\b|^space\s+rental\b/.test(x))return"Space Rental";
       if(/^marketing\s+partnerships?\b|^digital\s+media\b/.test(x))return"Digital Media";
-      if(/^events?\s*-\s*fees?\b|^events?\s+fees?\b|^fees?\b/.test(x))return"Fees";
       if(/^admin\s*fee\b/.test(x))return"Admin Fee";
+      if(/^events?\s*-\s*fees?\b|^events?\s+fees?\b|^fees?\b/.test(x))return"Fees";
       if(/^coach\b/.test(x))return"Other Fees";
 
       return null;
