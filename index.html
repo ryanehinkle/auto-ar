@@ -2072,22 +2072,59 @@
 
         // Only show the category line when there are actual AR categories.
         if(pieces.length){
-          const categoryText=pieces.join("  |  ");
-          const lines=wrapPdfText(bold,categoryText,10.2,contentWidth,2);
+          const categorySize=10.2;
+          const separator="     |     ";
+          const separatorWidth=bold.widthOfTextAtSize(separator,categorySize);
+          const pieceWidths=pieces.map(piece=>bold.widthOfTextAtSize(piece,categorySize));
+          const oneLineWidth=
+            pieceWidths.reduce((sum,width)=>sum+width,0)+
+            separatorWidth*Math.max(0,pieces.length-1);
 
-          lines.forEach((line,index)=>{
-            const lineWidth=bold.widthOfTextAtSize(line,10.2);
+          if(oneLineWidth<=contentWidth){
+            let drawX=centerX-(oneLineWidth/2);
 
-            firstPage.drawText(line,{
-              x:centerX-(lineWidth/2),
-              y:y-(index*13),
-              size:10.2,
-              font:bold,
-              color:rgb(0.10,0.10,0.12)
+            pieces.forEach((piece,index)=>{
+              firstPage.drawText(piece,{
+                x:drawX,
+                y,
+                size:categorySize,
+                font:bold,
+                color:rgb(0.10,0.10,0.12)
+              });
+
+              drawX+=pieceWidths[index];
+
+              if(index<pieces.length-1){
+                firstPage.drawText(separator,{
+                  x:drawX,
+                  y,
+                  size:categorySize,
+                  font:bold,
+                  color:rgb(0.34,0.34,0.37)
+                });
+                drawX+=separatorWidth;
+              }
             });
-          });
 
-          totalY=y-(lines.length*13)-3;
+            totalY=y-16;
+          }else{
+            const categoryText=pieces.join("  |  ");
+            const lines=wrapPdfText(bold,categoryText,categorySize,contentWidth,2);
+
+            lines.forEach((line,index)=>{
+              const lineWidth=bold.widthOfTextAtSize(line,categorySize);
+
+              firstPage.drawText(line,{
+                x:centerX-(lineWidth/2),
+                y:y-(index*13),
+                size:categorySize,
+                font:bold,
+                color:rgb(0.10,0.10,0.12)
+              });
+            });
+
+            totalY=y-(lines.length*13)-3;
+          }
         }
 
         const totalLabel="TOTAL AR: ";
@@ -2096,20 +2133,31 @@
         const totalSize=11.4;
 
         if(comparison.flexAdjusted){
-          const leftText=
-            totalLabel+
+          const formulaText=
             formatMoney(comparison.grossTotal)+
             " - "+
             formatMoney(comparison.fbMinimum)+
-            " = ";
+            " =  ";
           const resultText=formatMoney(comparison.total);
-          const leftWidth=bold.widthOfTextAtSize(leftText,totalSize);
+
+          const labelWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
+          const formulaWidth=bold.widthOfTextAtSize(formulaText,totalSize);
           const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
-          const totalWidth=leftWidth+resultWidth;
+          const totalWidth=labelWidth+formulaWidth+resultWidth;
           const startX=centerX-(totalWidth/2);
 
-          firstPage.drawText(leftText,{
+          // Keep the TOTAL AR label and final answer green, while the actual
+          // subtraction stays black for quick visual separation.
+          firstPage.drawText(totalLabel,{
             x:startX,
+            y:totalY,
+            size:totalSize,
+            font:bold,
+            color:green
+          });
+
+          firstPage.drawText(formulaText,{
+            x:startX+labelWidth,
             y:totalY,
             size:totalSize,
             font:bold,
@@ -2117,17 +2165,17 @@
           });
 
           firstPage.drawText(resultText,{
-            x:startX+leftWidth,
+            x:startX+labelWidth+formulaWidth,
             y:totalY,
             size:totalSize,
             font:bold,
             color:green
           });
         }else{
-          const leftWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
           const resultText=formatMoney(comparison.total);
+          const labelWidth=bold.widthOfTextAtSize(totalLabel,totalSize);
           const resultWidth=bold.widthOfTextAtSize(resultText,totalSize);
-          const totalWidth=leftWidth+resultWidth;
+          const totalWidth=labelWidth+resultWidth;
           const startX=centerX-(totalWidth/2);
 
           firstPage.drawText(totalLabel,{
@@ -2135,11 +2183,11 @@
             y:totalY,
             size:totalSize,
             font:bold,
-            color:black
+            color:green
           });
 
           firstPage.drawText(resultText,{
-            x:startX+leftWidth,
+            x:startX+labelWidth,
             y:totalY,
             size:totalSize,
             font:bold,
