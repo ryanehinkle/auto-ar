@@ -38,7 +38,7 @@
     .quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.quick-card,.field{min-width:0;padding:12px 13px;border:1px solid #2d2d33;border-radius:9px;background:#151519}
     .quick-label,.field-label{color:#7f7f89;font-size:.66rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase}.quick-value,.field-value{margin-top:5px;overflow-wrap:anywhere;color:#e8e8ec;font-size:.88rem;font-weight:720;line-height:1.35}
     .details{grid-column:1/-1;margin-top:20px}.details-body{padding:18px}.section-block+.section-block{margin-top:22px;padding-top:22px;border-top:1px solid #29292f}.section-heading{margin-bottom:12px;color:#e9e9ed;font-size:.93rem;font-weight:850}
-    .field-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.field{padding:11px 12px;border-color:#2b2b31}.field-value{color:#dedee4;font-size:.82rem;font-weight:400}
+    .field-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.field{padding:11px 12px;border-color:#2b2b31}.field.wide{grid-column:1/-1}.field-value{color:#dedee4;font-size:.82rem;font-weight:400}
     .raw-toggle{display:inline-flex;align-items:center;gap:8px;border:0;padding:0;background:transparent;color:#8faed0;font-size:.78rem;font-weight:750;cursor:pointer}.raw-text{display:none;max-height:460px;overflow:auto;margin-top:12px;padding:14px;border:1px solid #29292f;border-radius:9px;background:#101013;color:#9b9ba5;font:.72rem/1.55 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap;word-break:break-word}.raw-text.open{display:block}
     .reveal{opacity:0;transform:translateY(7px);transition:opacity .28s ease,transform .28s ease}.reveal.show{opacity:1;transform:translateY(0)}
     @media(max-width:1000px){.analysis-grid{grid-template-columns:1fr}.details{grid-column:auto}.field-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -231,8 +231,9 @@
       for(const pair of generic){
         const label=pair[0],value=pair[1];
         const known=KNOWN.some(k=>k[1].some(a=>norm(a)===norm(label)));
+        const duplicateField=Object.keys(fields).some(name=>norm(name)===norm(label));
         const malformed=/event date|event time|event status|guest count|account|contact|email|phone/i.test(label) && label.length>24;
-        if(!known&&!malformed&&value&&value.length<=220)extras[label]=value;
+        if(!known&&!duplicateField&&!malformed&&value&&value.length<=220)extras[label]=value;
       }
 
       return{
@@ -425,7 +426,7 @@
 
     function makeSection(title,entries){
       const block=document.createElement("section");block.className="section-block";const h=document.createElement("h2");h.className="section-heading";h.textContent=title;const grid=document.createElement("div");grid.className="field-grid";
-      for(const item of entries){const field=document.createElement("div");field.className="field";const l=document.createElement("div");l.className="field-label";l.textContent=item[0];const v=document.createElement("div");v.className="field-value";v.textContent=item[1];field.append(l,v);grid.appendChild(field)}
+      for(const item of entries){const field=document.createElement("div");field.className="field";if(String(item[1]).length>110)field.classList.add("wide");const l=document.createElement("div");l.className="field-label";l.textContent=item[0];const v=document.createElement("div");v.className="field-value";v.textContent=item[1];field.append(l,v);grid.appendChild(field)}
       block.append(h,grid);return block;
     }
 
