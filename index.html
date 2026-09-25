@@ -84,6 +84,40 @@
     .summary-row strong{color:#dddde2;font-size:.76rem;font-weight:850;font-variant-numeric:tabular-nums}
     .summary-row.total{margin-top:4px;padding-top:8px;border-top:1px solid #32323a;color:#9fc4ec}
     .summary-row.total span:first-child,.summary-row.total strong{color:#9fc4ec;font-weight:900}
+
+    .contracted-details{margin-top:14px;border-top:1px solid #29292f}
+    .contracted-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 8px;list-style:none;cursor:pointer;color:#d8d8de;font-size:.72rem;font-weight:900;letter-spacing:.065em;text-transform:uppercase}
+    .contracted-summary::-webkit-details-marker{display:none}
+    .contracted-summary::after{content:"⌄";color:#74747e;font-size:.9rem;transition:transform .16s ease}
+    .contracted-details:not([open]) .contracted-summary::after{transform:rotate(-90deg)}
+    .contracted-details .finance-wrap{margin-top:0;padding-top:0;border-top:0}
+    .additional-revenue{margin-top:12px;padding-top:12px;border-top:1px solid #29292f}
+    .ar-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .ar-title{color:#d8d8de;font-size:.72rem;font-weight:900;letter-spacing:.065em;text-transform:uppercase}
+    .ar-paste-zone{min-width:150px;max-width:220px;padding:8px 10px;border:1px dashed #3b526b;border-radius:8px;background:#14191f;color:#8098b1;font-size:.66rem;font-weight:750;text-align:center;cursor:text;outline:none;transition:.15s ease}
+    .ar-paste-zone:focus{border-color:#6b9ed2;background:#171f28;color:#a9c8e8}
+    .ar-paste-zone.processing{display:none}
+    .ar-scan-log{display:none;margin:1px 0 10px;padding:9px 10px;border:1px solid #2c333b;border-radius:8px;background:#11161b;color:#8fa8c1;font:600 .64rem/1.45 "SFMono-Regular",Consolas,monospace}
+    .ar-scan-log.visible{display:block}
+    .ar-results{display:grid;gap:7px}
+    .ar-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:1px solid #2f3841;border-left-width:3px;border-radius:8px;background:#15191d}
+    .ar-item-label{font-size:.67rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+    .ar-item-value{font-size:.85rem;font-weight:900;color:#8fd0a4;font-variant-numeric:tabular-nums}
+    .ar-item-detail{margin-top:2px;color:#777f88;font-size:.59rem;font-weight:650}
+    .ar-item.food{border-left-color:#8dc6f1}.ar-item.food .ar-item-label{color:#9dcef1}
+    .ar-item.lbw{border-left-color:#ef9dbd}.ar-item.lbw .ar-item-label{color:#f0a9c4}
+    .ar-item.na{border-left-color:#7fd5d0}.ar-item.na .ar-item-label{color:#92ddd8}
+    .ar-item.gameplay{border-left-color:#8ed39c}.ar-item.gameplay .ar-item-label{color:#9bdbaa}
+    .ar-item.retail{border-left-color:#c7a8eb}.ar-item.retail .ar-item-label{color:#cfb6ec}
+    .ar-item.labor{border-left-color:#e2c27d}.ar-item.labor .ar-item-label{color:#e8cb8e}
+    .ar-item.event-space-rental{border-left-color:#b79de7}.ar-item.event-space-rental .ar-item-label{color:#c3aceb}
+    .ar-item.other-fees{border-left-color:#d8ae74}.ar-item.other-fees .ar-item-label{color:#dfb982}
+    .ar-item.admin-fee{border-left-color:#a9adb5}.ar-item.admin-fee .ar-item-label{color:#b9bdc5}
+    .ar-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px;padding:10px 2px 1px;border-top:1px solid #303740;color:#9ad6ad;font-size:.75rem;font-weight:900}
+    .ar-empty{padding:9px 1px;color:#777f88;font-size:.68rem}
+    .ar-replace{display:none;margin-left:auto;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
+    .ar-replace.visible{display:inline-block}
+
     .empty-events{display:none;padding:28px;border:1px dashed #34343b;border-radius:12px;color:#85858f;text-align:center}
     .pdf-modal{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(3,3,5,.76);backdrop-filter:blur(8px)}
     .pdf-modal.open{display:flex}
@@ -175,6 +209,7 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script type="module">
 
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
@@ -741,6 +776,14 @@
         meta.appendChild(chip);
       });
 
+      const contracted=document.createElement("details");
+      contracted.className="contracted-details";
+      contracted.open=true;
+
+      const contractedSummary=document.createElement("summary");
+      contractedSummary.className="contracted-summary";
+      contractedSummary.textContent="Contracted";
+
       const finance=document.createElement("div");
       finance.className="finance-wrap";
 
@@ -798,11 +841,293 @@
         finance.appendChild(summary);
       }
 
+      contracted.append(contractedSummary,finance);
+
+      const additional=document.createElement("section");
+      additional.className="additional-revenue";
+
+      const arHeader=document.createElement("div");
+      arHeader.className="ar-header";
+
+      const arTitle=document.createElement("div");
+      arTitle.className="ar-title";
+      arTitle.textContent="Additional Revenue";
+
+      const pasteZone=document.createElement("div");
+      pasteZone.className="ar-paste-zone";
+      pasteZone.tabIndex=0;
+      pasteZone.textContent="Click here, then paste Toast screenshot";
+
+      const replaceButton=document.createElement("button");
+      replaceButton.type="button";
+      replaceButton.className="ar-replace";
+      replaceButton.textContent="Paste new screenshot";
+
+      arHeader.append(arTitle,pasteZone,replaceButton);
+
+      const scanLog=document.createElement("div");
+      scanLog.className="ar-scan-log";
+
+      const arResults=document.createElement("div");
+      arResults.className="ar-results";
+
+      pasteZone.addEventListener("paste",(event)=>{
+        handleToastPaste(event,p,f,pasteZone,replaceButton,scanLog,arResults);
+      });
+
+      pasteZone.addEventListener("click",()=>{
+        pasteZone.focus();
+      });
+
+      replaceButton.addEventListener("click",()=>{
+        arResults.replaceChildren();
+        scanLog.replaceChildren();
+        scanLog.classList.remove("visible");
+        pasteZone.classList.remove("processing");
+        pasteZone.style.display="";
+        replaceButton.classList.remove("visible");
+        pasteZone.focus();
+      });
+
+      additional.append(arHeader,scanLog,arResults);
+
       preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
 
-      body.append(kicker,name,meta,finance);
+      body.append(kicker,name,meta,contracted,additional);
       card.append(preview,body);
       return card;
+    }
+
+
+    async function handleToastPaste(event,parsed,financial,pasteZone,replaceButton,scanLog,results){
+      const items=Array.from(event.clipboardData?.items||[]);
+      const imageItem=items.find(item=>item.type&&item.type.startsWith("image/"));
+      if(!imageItem)return;
+
+      event.preventDefault();
+      const blob=imageItem.getAsFile();
+      if(!blob)return;
+
+      pasteZone.classList.add("processing");
+      pasteZone.style.display="none";
+      replaceButton.classList.add("visible");
+      results.replaceChildren();
+      scanLog.replaceChildren();
+      scanLog.classList.add("visible");
+
+      try{
+        await arType(scanLog,"Reading Toast sales summary…");
+
+        const ocr=await window.Tesseract.recognize(blob,"eng",{
+          logger:(message)=>{
+            if(message.status==="recognizing text"&&Number.isFinite(message.progress)){
+              scanLog.dataset.progress=Math.round(message.progress*100)+"%";
+            }
+          }
+        });
+
+        await arType(scanLog,"Matching Toast categories to contract…");
+
+        const toast=parseToastSales(ocr.data.text||"");
+        const comparison=compareAdditionalRevenue(toast,financial);
+
+        await arType(
+          scanLog,
+          comparison.items.length
+            ? "Additional revenue found."
+            : "No additional revenue found."
+        );
+
+        renderAdditionalRevenue(results,comparison);
+
+        setTimeout(()=>{
+          scanLog.classList.remove("visible");
+        },450);
+      }catch(error){
+        console.error("Toast screenshot OCR failed:",error);
+        scanLog.textContent="Could not read that screenshot. Paste a clearer Sales Category Summary image.";
+        pasteZone.style.display="";
+        pasteZone.classList.remove("processing");
+      }
+    }
+
+    function parseToastSales(text){
+      const rows=String(text||"")
+        .split(/\r?\n/)
+        .map(clean)
+        .filter(Boolean);
+
+      const totals={
+        Food:0,
+        LBW:0,
+        NA:0,
+        Gameplay:0,
+        Retail:0,
+        Labor:0,
+        "Event Space Rental":0,
+        "Other Fees":0,
+        "Admin Fee":0
+      };
+
+      for(const row of rows){
+        const category=mapToastCategory(row);
+        if(!category)continue;
+
+        const amounts=extractToastAmounts(row);
+        if(!amounts.length)continue;
+
+        // Sales Category Summary columns are Items, Net Sales, Discounts, Gross Sales.
+        // The first money value on the category row is Net Sales, which is what we
+        // compare against the contracted amount for AR.
+        const netSales=amounts[0];
+        if(netSales===null)continue;
+
+        totals[category]+=netSales;
+      }
+
+      return totals;
+    }
+
+    function mapToastCategory(row){
+      const x=row.toLowerCase().replace(/\s+/g," ").trim();
+
+      if(/^beer\b/.test(x)||/^liquor\b/.test(x)||/^wine\b/.test(x))return"LBW";
+      if(/^n\/?a\s*bev\b|^na\s*bev\b|^non[- ]?alcoholic\b/.test(x))return"NA";
+      if(/^food\b/.test(x))return"Food";
+      if(/^game\s*play\b|^gameplay\b/.test(x))return"Gameplay";
+      if(/^retail\b/.test(x))return"Retail";
+      if(/^labor\b|^labour\b/.test(x))return"Labor";
+      if(/^event\s*-\s*space\s*rental\b|^event\s+space\s+rental\b|^space\s+rental\b/.test(x))return"Event Space Rental";
+      if(/^admin\s*fee\b/.test(x))return"Admin Fee";
+
+      if(
+        /^events?\s*-\s*fees?\b/.test(x)||
+        /^coach\b/.test(x)||
+        /^marketing\s+partnerships?\b/.test(x)
+      )return"Other Fees";
+
+      return null;
+    }
+
+    function extractToastAmounts(row){
+      const matches=[
+        ...row.matchAll(/(?:\$|USD\s*)?\s*(-?\d[\d,]*\.\d{2})/gi)
+      ];
+
+      return matches
+        .map(match=>parseMoney(match[1]))
+        .filter(value=>value!==null);
+    }
+
+    function compareAdditionalRevenue(toast,financial){
+      const contracted={
+        Food:Number(financial.categories.Food||0),
+        LBW:Number(financial.categories.Beverages||0),
+        NA:Number(financial.categories.NA||0),
+        Gameplay:Number(financial.categories.Gameplay||0),
+        Retail:Number(financial.categories.Retail||0),
+        Labor:Number(financial.categories.Labor||0),
+        "Event Space Rental":Number(financial.categories["Event Space Rental"]||0),
+        "Other Fees":Number(financial.categories["Other Fees"]||0),
+        "Admin Fee":Number(financial.adminFee||0)
+      };
+
+      const items=[];
+
+      for(const label of ["Food","LBW","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees","Admin Fee"]){
+        const actual=Number(toast[label]||0);
+        const base=Number(contracted[label]||0);
+        const additional=Math.max(0,actual-base);
+
+        if(additional>0.004){
+          items.push({label,actual,contracted:base,additional});
+        }
+      }
+
+      items.sort((a,b)=>b.additional-a.additional);
+
+      return{
+        items,
+        total:items.reduce((sum,item)=>sum+item.additional,0)
+      };
+    }
+
+    function renderAdditionalRevenue(container,comparison){
+      container.replaceChildren();
+
+      if(!comparison.items.length){
+        const empty=document.createElement("div");
+        empty.className="ar-empty";
+        empty.textContent="No additional revenue detected from this Toast screenshot.";
+        container.appendChild(empty);
+        return;
+      }
+
+      for(const item of comparison.items){
+        const row=document.createElement("div");
+        row.className="ar-item "+arClassName(item.label);
+
+        const left=document.createElement("div");
+
+        const label=document.createElement("div");
+        label.className="ar-item-label";
+        label.textContent=item.label==="LBW"?"L/B/W":item.label;
+
+        const detail=document.createElement("div");
+        detail.className="ar-item-detail";
+        detail.textContent="Toast "+formatMoney(item.actual)+" · Contracted "+formatMoney(item.contracted);
+
+        const value=document.createElement("div");
+        value.className="ar-item-value";
+        value.textContent="+"+formatMoney(item.additional);
+
+        left.append(label,detail);
+        row.append(left,value);
+        container.appendChild(row);
+      }
+
+      const total=document.createElement("div");
+      total.className="ar-total";
+
+      const totalLabel=document.createElement("span");
+      totalLabel.textContent="Total Additional Revenue";
+
+      const totalValue=document.createElement("strong");
+      totalValue.textContent="+"+formatMoney(comparison.total);
+
+      total.append(totalLabel,totalValue);
+      container.appendChild(total);
+    }
+
+    function arClassName(label){
+      const classes={
+        Food:"food",
+        LBW:"lbw",
+        NA:"na",
+        Gameplay:"gameplay",
+        Retail:"retail",
+        Labor:"labor",
+        "Event Space Rental":"event-space-rental",
+        "Other Fees":"other-fees",
+        "Admin Fee":"admin-fee"
+      };
+
+      return classes[label]||"other-fees";
+    }
+
+    async function arType(target,message){
+      target.classList.add("visible");
+      target.textContent="";
+
+      if(reduced){
+        target.textContent=message;
+        return;
+      }
+
+      for(let i=0;i<message.length;i++){
+        target.textContent+=message[i];
+        await delay(2);
+      }
     }
 
     function makeFinanceItem(label,value,total,detail){
