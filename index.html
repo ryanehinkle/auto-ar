@@ -62,6 +62,9 @@
     .event-card-body{padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.65rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
+    .event-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+    .event-tag{padding:4px 7px;border:1px solid #38506a;border-radius:999px;background:#17212c;color:#8eb9e6;font-size:.61rem;font-weight:850;letter-spacing:.055em;text-transform:uppercase}
+    .event-tag.other{border-color:#3a3a42;background:#1d1d21;color:#8b8b95}
     .event-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
     .meta-chip{padding:5px 7px;border:1px solid #303038;border-radius:7px;background:#141418;color:#b6b6bf;font-size:.7rem;font-weight:700}
     .finance-wrap{margin-top:14px;padding-top:13px;border-top:1px solid #29292f}
@@ -343,9 +346,10 @@
       const time=fieldValue(lines,"Event Time");
       const guests=fieldValue(lines,"Event Guest Count");
       const eventCard=extractEventCard(lines);
-      const financial=extractFinancials(lines);
+      const tags=detectEventTags(lines,text);
+      const financial=extractFinancials(lines,tags);
 
-      return{name,fullTitle:fullTitle||name,date,time,guests,eventCard,beoNumber:group.beoNumber,financial};
+      return{name,fullTitle:fullTitle||name,date,time,guests,eventCard,beoNumber:group.beoNumber,tags,financial};
     }
 
     function extractFullEventTitle(lines){
@@ -385,27 +389,168 @@
       return null;
     }
 
-    function extractFinancials(lines){
-      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Event Space Rental":0,"Other Fees":0};
+    function detectEventTags(lines,text){
+      const tags=[];
+      let section="";
+
+      for(const rawLine of lines){
+        const line=clean(rawLine);
+        const sectionName=detectProductSection(line);
+        if(sectionName){
+          section=sectionName;
+          continue;
+        }
+
+        if(section!=="Food"&&section!=="Beverages")continue;
+
+        if(/\byouth\b/i.test(line)&&!tags.includes("Youth"))tags.push("Youth");
+        if(/\bcrowd\s+pleaser\b/i.test(line)&&!tags.includes("Pleaser"))tags.push("Pleaser");
+        if(/\bshareable\s+bites?\b|\bfan\s+faves?\b/i.test(line)&&!tags.includes("Faves"))tags.push("Faves");
+        if(/\bflex\b|\bmulti[- ]?bay\s+flex\b/i.test(line)&&!tags.includes("Flex"))tags.push("Flex");
+        if(/\bbuffet\b.*\b(?:package|food|menu)\b|\b(?:package|food|menu)\b.*\bbuffet\b/i.test(line)&&!tags.includes("Buffet"))tags.push("Buffet");
+      }
+
+      if(/\bfield\s*trip\b/i.test(text)&&!tags.includes("Field Trip"))tags.unshift("Field Trip");
+
+      const preferred=["Field Trip","Youth","Buffet","Flex","Pleaser","Faves"];
+      tags.sort((a,b)=>preferred.indexOf(a)-preferred.indexOf(b));
+
+      return tags.length?tags:["Other"];
+    }
+
+    function detectProductSection(line){
+      const normalized=clean(line).toLowerCase();
+
+      if(normalized==="food")return"Food";
+      if(normalized==="beverages"||normalized==="beverage")return"Beverages";
+      if(normalized==="gameplay"||normalized==="game play"||normalized==="game enhancement")return"Gameplay";
+      if(normalized==="retail")return"Retail";
+      if(normalized==="labor"||normalized==="labour")return"Labor";
+      if(normalized==="asset"||normalized==="assets")return"Asset";
+      if(normalized==="event space rental"||normalized==="space rental")return"Event Space Rental";
+
+      return null;
+    }
+
+    function extractLineItem(line,section){
+      const qtyPrice=line.match(/\b(\d+(?:\.\d+)?)\s+USD\s*([\d,.]+)/i);
+      if(!qtyPrice)return null;
+
+      const amounts=line.match(/USD\s*[\d,.]+/gi)||[];
+      const quantity=Number(qtyPrice[1]);
+      const unitPrice=parseMoney(qtyPrice[2]);
+      const printedTotal=amounts.length?parseMoney(amounts[amounts.length-1]):null;
+
+      if(!Number.isFinite(quantity)||unitPrice===null)return null;
+
+      return{
+        line,
+        section,
+        quantity,
+        unitPrice,
+        computedTotal:quantity*unitPrice,
+        printedTotal
+      };
+    }
+
+    function extractFinancials(lines,tags=[]){
+      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Event Space Rental":0,"F&B Minimum":0,"Other Fees":0};
       const detected={};
       const otherBreakdown=[];
+      const sectionTotals={};
+      const lineItems=[];
+      let section="";
 
-      for(const line of lines){
-        const m=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*([\d,.]+)/i);
-        if(!m)continue;
+      for(const rawLine of lines){
+        const line=clean(rawLine);
+        const nextSection=detectProductSection(line);
 
-        const rawLabel=clean(m[1]);
-        const amount=parseMoney(m[2]);
-        if(amount===null)continue;
-
-        const category=mapRevenueCategory(rawLabel);
-        if(category==="Other Fees"){
-          categories[category]+=amount;
-          otherBreakdown.push(rawLabel+" "+formatMoney(amount));
-        }else{
-          categories[category]+=amount;
+        if(nextSection){
+          section=nextSection;
+          continue;
         }
-        detected[category]=true;
+
+        const totalMatch=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*([\d,.]+)/i);
+        if(totalMatch){
+          const rawLabel=clean(totalMatch[1]);
+          const amount=parseMoney(totalMatch[2]);
+
+          if(amount!==null){
+            const category=mapRevenueCategory(rawLabel);
+            categories[category]+=amount;
+            sectionTotals[category]=(sectionTotals[category]||0)+amount;
+            detected[category]=true;
+
+            if(category==="Other Fees"){
+              otherBreakdown.push(rawLabel+" "+formatMoney(amount));
+            }
+          }
+          continue;
+        }
+
+        const item=extractLineItem(line,section);
+        if(item)lineItems.push(item);
+      }
+
+      const splitFromParent={Food:0,Beverages:0};
+      let youthFood=0;
+
+      for(const item of lineItems){
+        const text=item.line.toLowerCase();
+        const parent=item.section==="Food"?"Food":item.section==="Beverages"?"Beverages":null;
+        if(!parent)continue;
+
+        const normalAmount=
+          item.printedTotal!==null&&item.printedTotal>0
+            ? item.printedTotal
+            : item.computedTotal;
+
+        const isYouth=/\byouth\b/i.test(item.line);
+        const isNA=/\bnon[- ]?alcoholic\b|\bna\s+beverage\b|\bna\s+bev\b/i.test(item.line);
+        const isFlex=/\bflex\b|\bmulti[- ]?bay\s+flex\b/i.test(item.line);
+        const isMinimum=isFlex&&/\bminimum\b|\bf\s*&\s*b\s+minimum\b|\bfood\s*&\s*beverage\s+minimum\b/i.test(item.line);
+
+        if(isYouth){
+          // Youth product lines under BOTH Food and Beverages are treated as Food.
+          youthFood+=item.computedTotal;
+          if(item.printedTotal!==null&&item.printedTotal>0){
+            splitFromParent[parent]+=item.printedTotal;
+          }
+          continue;
+        }
+
+        if(isMinimum){
+          categories["F&B Minimum"]+=normalAmount;
+          detected["F&B Minimum"]=true;
+          if(item.printedTotal!==null&&item.printedTotal>0){
+            splitFromParent[parent]+=item.printedTotal;
+          }
+          continue;
+        }
+
+        if(isNA){
+          categories.NA+=normalAmount;
+          detected.NA=true;
+          if(item.printedTotal!==null&&item.printedTotal>0){
+            splitFromParent[parent]+=item.printedTotal;
+          }
+        }
+      }
+
+      if(youthFood>0){
+        categories.Food+=youthFood;
+        detected.Food=true;
+      }
+
+      for(const parent of ["Food","Beverages"]){
+        if(splitFromParent[parent]>0){
+          categories[parent]=Math.max(0,categories[parent]-splitFromParent[parent]);
+
+          if(categories[parent]<0.005){
+            categories[parent]=0;
+            delete detected[parent];
+          }
+        }
       }
 
       const billingHeaderIndex=lines.findIndex(l=>/^\s*Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges\s*$/i.test(l));
@@ -421,14 +566,27 @@
       }
 
       let payments=null,outstanding=null;
+
       for(const line of lines){
         let m=line.match(/^Total Payments\s+USD\s*([\d,.]+)/i);
         if(m)payments=parseMoney(m[1]);
+
         m=line.match(/^Total Outstanding Balance\s+USD\s*([\d,.]+)/i);
         if(m)outstanding=parseMoney(m[1]);
       }
 
-      return{categories,detected,otherBreakdown,subtotal,taxes,serviceCharge,adminFee,totalCharges,payments,outstanding};
+      return{
+        categories,
+        detected,
+        otherBreakdown,
+        subtotal,
+        taxes,
+        serviceCharge,
+        adminFee,
+        totalCharges,
+        payments,
+        outstanding
+      };
     }
 
     function mapRevenueCategory(label){
@@ -470,6 +628,16 @@
       name.className="event-name";
       name.textContent=p.name;
 
+      const tags=document.createElement("div");
+      tags.className="event-tags";
+
+      for(const tagName of p.tags){
+        const tag=document.createElement("span");
+        tag.className="event-tag"+(tagName==="Other"?" other":"");
+        tag.textContent=tagName;
+        tags.appendChild(tag);
+      }
+
       const meta=document.createElement("div");
       meta.className="event-meta";
       [["Date",p.date],["Time",p.time],["Guests",p.guests]].forEach(pair=>{
@@ -489,7 +657,7 @@
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      ["Food","Beverages","NA","Gameplay","Retail","Labor","Event Space Rental","Other Fees"].forEach(label=>{
+      ["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Event Space Rental","Other Fees"].forEach(label=>{
         if(!f.detected[label]&&!(label==="Other Fees"&&f.categories[label]>0))return;
         financeGrid.appendChild(makeFinanceItem(label,formatMoney(f.categories[label]),false,label==="Other Fees"?f.otherBreakdown.join(" · "):""));
       });
@@ -508,7 +676,7 @@
       button.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
       preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
 
-      body.append(kicker,name,meta,finance,button);
+      body.append(kicker,name,tags,meta,finance,button);
       card.append(preview,body);
       return card;
     }
