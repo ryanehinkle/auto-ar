@@ -45,6 +45,53 @@
     @media(max-width:700px){.app{width:min(92vw,1480px);padding-top:26px}.app-header{align-items:flex-start;flex-direction:column}.field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid{grid-template-columns:1fr}.landing-card{padding:42px 24px 30px}}
     @media(max-width:430px){.field-grid{grid-template-columns:1fr}.file-strip{align-items:flex-start;flex-direction:column;gap:6px}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+  
+    .scan-panel{margin-bottom:20px}
+    .scan-panel .terminal{min-height:0;max-height:190px}
+    .scan-progress{height:3px;background:#24242a;overflow:hidden}
+    .scan-progress-bar{width:0;height:100%;background:#5e93cc;transition:width .16s ease}
+    .events-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:28px 0 14px}
+    .events-head h2{font-size:1.1rem;color:#f4f4f6}
+    .events-head p{margin-top:5px;color:#85858f;font-size:.8rem}
+    .event-count{color:#8fbe9d;font-size:.8rem;font-weight:800}
+    .events-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+    .event-card{min-width:0;overflow:hidden;border:1px solid #303036;border-radius:13px;background:#18181b;box-shadow:0 12px 34px rgba(0,0,0,.22);transition:transform .16s ease,border-color .16s ease}
+    .event-card:hover{transform:translateY(-2px);border-color:#494951}
+    .event-preview{height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
+    .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+    .event-card-body{padding:15px}
+    .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.65rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+    .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
+    .event-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .meta-chip{padding:5px 7px;border:1px solid #303038;border-radius:7px;background:#141418;color:#b6b6bf;font-size:.7rem;font-weight:700}
+    .finance-wrap{margin-top:14px;padding-top:13px;border-top:1px solid #29292f}
+    .finance-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px;color:#888892;font-size:.66rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+    .finance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+    .finance-item{min-width:0;padding:8px 9px;border:1px solid #2b2b31;border-radius:8px;background:#151519}
+    .finance-label{color:#74747e;font-size:.59rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    .finance-value{margin-top:4px;color:#e6e6ea;font-size:.8rem;font-weight:800}
+    .finance-item.total{border-color:#3d4d60;background:#151a20}
+    .finance-item.total .finance-value{color:#9fc4ec}
+    .other-detail{margin-top:3px;color:#6f6f79;font-size:.6rem;line-height:1.3}
+    .preview-button{width:100%;margin-top:13px;border:1px solid #414149;border-radius:8px;padding:9px 10px;background:#232328;color:#d8d8de;font-weight:750;font-size:.76rem;cursor:pointer}
+    .preview-button:hover{background:#2c2c32}
+    .empty-events{display:none;padding:28px;border:1px dashed #34343b;border-radius:12px;color:#85858f;text-align:center}
+    .pdf-modal{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(3,3,5,.76);backdrop-filter:blur(8px)}
+    .pdf-modal.open{display:flex}
+    .modal-window{position:relative;max-width:94vw;max-height:92vh;display:flex;flex-direction:column;border:1px solid #3b3b43;border-radius:14px;background:#18181c;box-shadow:0 28px 90px rgba(0,0,0,.64);overflow:hidden}
+    .modal-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 14px;border-bottom:1px solid #303036;background:#1b1b1f}
+    .modal-event-name{max-width:min(62vw,680px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e9e9ed;font-size:.82rem;font-weight:800}
+    .modal-controls{display:flex;align-items:center;gap:8px}
+    .page-counter{color:#90909a;font-size:.75rem;font-weight:750}
+    .modal-button{width:34px;height:34px;border:1px solid #3a3a42;border-radius:8px;background:#242429;color:#dedee4;font-size:1.1rem;cursor:pointer}
+    .modal-button:disabled{opacity:.32;cursor:default}
+    .modal-close{font-size:1.2rem}
+    .modal-body{position:relative;display:grid;place-items:center;min-width:320px;min-height:360px;padding:14px;background:#111114}
+    #modalCanvas{display:block;max-width:88vw;max-height:80vh;background:#fff;box-shadow:0 5px 24px rgba(0,0,0,.36)}
+    .modal-loading{position:absolute;color:#81818b;font-size:.8rem}
+    @media(max-width:1100px){.events-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:700px){.events-grid{grid-template-columns:1fr}.event-preview{height:220px}.events-head{align-items:flex-start;flex-direction:column}}
+
   </style>
 </head>
 <body>
@@ -63,13 +110,14 @@
     </section>
   </main>
 
+
   <main id="app" class="app">
     <header class="app-header">
       <div id="appBrand" class="app-brand" role="button" tabindex="0" title="Return home">
         <h1>Automatic AR</h1>
-        <p>BEO intelligence readout</p>
+        <p>Multi-event BEO financial readout</p>
       </div>
-      <button id="newFileButton" class="new-file-button" type="button">Upload another BEO</button>
+      <button id="newFileButton" class="new-file-button" type="button">Upload another PDF</button>
     </header>
 
     <div class="file-strip">
@@ -77,39 +125,526 @@
       <span id="fileMeta" class="file-meta">—</span>
     </div>
 
-    <div class="analysis-grid">
-      <section class="panel">
-        <header class="panel-header"><span class="panel-title">AR scan</span><span id="status" class="status"><span class="status-dot"></span> Reading</span></header>
-        <div id="terminal" class="terminal" aria-live="polite"></div>
-      </section>
+    <section class="panel scan-panel">
+      <header class="panel-header">
+        <span class="panel-title">AR scan</span>
+        <span id="status" class="status"><span class="status-dot"></span> Reading</span>
+      </header>
+      <div class="scan-progress"><div id="scanProgressBar" class="scan-progress-bar"></div></div>
+      <div id="terminal" class="terminal" aria-live="polite"></div>
+    </section>
 
-      <section class="panel reveal" id="summaryPanel">
-        <header class="panel-header"><span class="panel-title">Event summary</span><span id="beoBadge" class="status">BEO</span></header>
-        <div class="summary">
-          <div class="hero-event">
-            <div class="eyebrow">Detected event</div>
-            <div id="eventTitle" class="event-title">—</div>
-            <div id="eventSubtitle" class="event-subtitle">—</div>
-          </div>
-          <div id="quickGrid" class="quick-grid"></div>
-        </div>
-      </section>
-
-      <section class="panel details reveal" id="detailsPanel">
-        <header class="panel-header"><span class="panel-title">Everything detected</span><span id="fieldCount" class="status">0 fields</span></header>
-        <div class="details-body">
-          <div id="detailsContent"></div>
-          <div class="section-block">
-            <button id="rawToggle" class="raw-toggle" type="button">▸ Show extracted PDF text</button>
-            <pre id="rawText" class="raw-text"></pre>
-          </div>
-        </div>
-      </section>
+    <div class="events-head">
+      <div>
+        <h2>Events</h2>
+        <p>Each event is separated, trimmed to its own BEO pages, and analyzed individually.</p>
+      </div>
+      <div id="eventCount" class="event-count">0 events</div>
     </div>
+
+    <div id="eventsGrid" class="events-grid"></div>
+    <div id="emptyEvents" class="empty-events">No events could be identified in this PDF.</div>
   </main>
 
+  <div id="pdfModal" class="pdf-modal" aria-hidden="true">
+    <section class="modal-window" role="dialog" aria-modal="true" aria-label="Event BEO preview">
+      <div class="modal-topbar">
+        <div id="modalEventName" class="modal-event-name">Event BEO</div>
+        <div class="modal-controls">
+          <button id="prevPage" class="modal-button" type="button" aria-label="Previous page">‹</button>
+          <span id="pageCounter" class="page-counter">1 of 1</span>
+          <button id="nextPage" class="modal-button" type="button" aria-label="Next page">›</button>
+          <button id="modalClose" class="modal-button modal-close" type="button" aria-label="Close preview">×</button>
+        </div>
+      </div>
+      <div id="modalBody" class="modal-body">
+        <div id="modalLoading" class="modal-loading">Loading page…</div>
+        <canvas id="modalCanvas"></canvas>
+      </div>
+    </section>
+  </div>
+
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script type="module">
+
     import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+
+    const PDFDocument=window.PDFLib.PDFDocument;
+    const $=(id)=>document.getElementById(id);
+    const pdfInput=$("pdfInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
+    const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let activePreviewPdf=null;
+    let activePreviewPage=1;
+    let modalRenderTask=null;
+
+    uploadButton.addEventListener("click",()=>pdfInput.click());
+    newFileButton.addEventListener("click",()=>pdfInput.click());
+    pdfInput.addEventListener("change",()=>{const f=pdfInput.files&&pdfInput.files[0];if(f)processFile(f);pdfInput.value=""});
+    appBrand.addEventListener("click",()=>location.reload());
+    appBrand.addEventListener("keydown",(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();location.reload()}});
+
+    ["dragenter","dragover"].forEach(n=>uploadZone.addEventListener(n,e=>{e.preventDefault();uploadZone.classList.add("dragging")}));
+    ["dragleave","drop"].forEach(n=>uploadZone.addEventListener(n,e=>{e.preventDefault();uploadZone.classList.remove("dragging")}));
+    uploadZone.addEventListener("drop",e=>{
+      const f=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]).find(x=>x.type==="application/pdf"||x.name.toLowerCase().endsWith(".pdf"));
+      if(f)processFile(f);else showError("Please drop a PDF BEO.");
+    });
+
+    function showError(msg){landingError.textContent=msg;landingError.classList.add("visible")}
+    function clearError(){landingError.textContent="";landingError.classList.remove("visible")}
+
+    async function processFile(file){
+      clearError();
+      if(file.type!=="application/pdf"&&!file.name.toLowerCase().endsWith(".pdf")){showError("Automatic AR currently reads PDF BEOs.");return}
+
+      landing.style.display="none";
+      app.classList.add("active");
+      terminal.replaceChildren();
+      eventsGrid.replaceChildren();
+      emptyEvents.style.display="none";
+      scanProgressBar.style.width="0%";
+      status.innerHTML='<span class="status-dot"></span> Reading';
+      fileName.textContent=file.name;
+      fileMeta.textContent=formatBytes(file.size);
+
+      try{
+        await terminalMessage("Loading BEO packet…");
+        const bytes=new Uint8Array(await file.arrayBuffer());
+        const sourcePdfLib=await PDFDocument.load(bytes.slice());
+        const sourcePdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
+
+        fileMeta.textContent=formatBytes(file.size)+" · "+sourcePdf.numPages+(sourcePdf.numPages===1?" page":" pages");
+        await terminalMessage("Mapping "+sourcePdf.numPages+" pages and locating event boundaries…");
+
+        const pageRecords=[];
+        for(let n=1;n<=sourcePdf.numPages;n++){
+          const page=await sourcePdf.getPage(n);
+          const lines=await extractLines(page);
+          const text=lines.join("\n");
+          pageRecords.push({pageNumber:n,lines,text});
+          scanProgressBar.style.width=Math.round((n/sourcePdf.numPages)*38)+"%";
+        }
+
+        const groups=buildEventGroups(pageRecords);
+        eventCount.textContent=groups.length+(groups.length===1?" event":" events");
+        await terminalMessage("Found "+groups.length+(groups.length===1?" event.":" events."),"success");
+
+        if(!groups.length){
+          status.innerHTML='<span class="status-dot"></span> Complete';
+          scanProgressBar.style.width="100%";
+          emptyEvents.style.display="block";
+          return;
+        }
+
+        let index=0;
+        for(const group of groups){
+          index++;
+          const parsed=parseEvent(group);
+          group.parsed=parsed;
+
+          const trimmed=await buildTrimmedEventPdf(sourcePdfLib,group.pageNumbers);
+          group.pdfBytes=trimmed;
+          group.pdf=await pdfjsLib.getDocument({data:trimmed.slice()}).promise;
+
+          const card=await renderEventCard(group,index,groups.length);
+          eventsGrid.appendChild(card);
+
+          const detail=[parsed.name,parsed.date,parsed.time,parsed.guests?parsed.guests+" guests":null].filter(Boolean).join(" · ");
+          await terminalMessage(String(index).padStart(2,"0")+"/"+String(groups.length).padStart(2,"0")+"  "+detail,"success");
+
+          scanProgressBar.style.width=(38+Math.round((index/groups.length)*62))+"%";
+        }
+
+        status.innerHTML='<span class="status-dot"></span> Complete';
+        scanProgressBar.style.width="100%";
+        await terminalMessage("All events separated and analyzed.","success");
+      }catch(err){
+        console.error(err);
+        status.innerHTML='<span class="status-dot"></span> Error';
+        await terminalMessage("Could not finish reading this PDF.","muted");
+      }
+    }
+
+    function buildEventGroups(pageRecords){
+      const groups=[];
+      let current=null;
+      let fallbackCounter=0;
+
+      for(const record of pageRecords){
+        const beoMatch=record.text.match(/\bBEO\s*#\s*:?\s*(\d+)/i);
+        const beoNumber=beoMatch?beoMatch[1]:null;
+        const hasEventHeader=/Event\s*Date\s*:/i.test(record.text);
+        const hasMeaningfulText=record.text.trim().length>0;
+
+        if(beoNumber){
+          if(!current||current.beoNumber!==beoNumber){
+            if(current&&current.records.length)groups.push(current);
+            current={beoNumber,records:[],pageNumbers:[]};
+          }
+          current.records.push(record);
+          current.pageNumbers.push(record.pageNumber-1);
+          continue;
+        }
+
+        if(hasEventHeader&&(!current||current.records.length)){
+          if(current&&current.records.length)groups.push(current);
+          fallbackCounter++;
+          current={beoNumber:"event-"+fallbackCounter,records:[record],pageNumbers:[record.pageNumber-1]};
+          continue;
+        }
+
+        if(current&&hasMeaningfulText){
+          current.records.push(record);
+          current.pageNumbers.push(record.pageNumber-1);
+        }
+      }
+
+      if(current&&current.records.length)groups.push(current);
+      return groups;
+    }
+
+    async function buildTrimmedEventPdf(sourcePdf,pageNumbers){
+      const unique=Array.from(new Set(pageNumbers)).filter(Number.isInteger);
+      const out=await PDFDocument.create();
+      const copied=await out.copyPages(sourcePdf,unique);
+      copied.forEach(page=>out.addPage(page));
+      return new Uint8Array(await out.save());
+    }
+
+    function parseEvent(group){
+      const lines=group.records.flatMap(r=>r.lines);
+      const text=group.records.map(r=>r.text).join("\n");
+      const fullTitle=extractFullEventTitle(lines);
+      const name=clean((fullTitle||"Event").split(" - ")[0]);
+      const date=fieldValue(lines,"Event Date");
+      const time=fieldValue(lines,"Event Time");
+      const guests=fieldValue(lines,"Event Guest Count");
+      const financial=extractFinancials(lines);
+
+      return{name,fullTitle:fullTitle||name,date,time,guests,beoNumber:group.beoNumber,financial};
+    }
+
+    function extractFullEventTitle(lines){
+      for(const line of lines){
+        const m=line.match(/^(.*?)\s+Event\s*Date\s*:/i);
+        if(m){
+          const prefix=clean(m[1]);
+          if(prefix&&!/^Page\s+\d+\s+of\s+\d+$/i.test(prefix))return prefix;
+        }
+      }
+
+      for(const line of lines){
+        if(/\s+-\s+/.test(line)&&!/:/.test(line)&&!/TOTAL|SUMMARY|BEO/i.test(line))return clean(line);
+      }
+
+      return null;
+    }
+
+    function fieldValue(lines,label){
+      const escaped=esc(label);
+      const allLabels="Event Date|Event Day of Week|Event Time|Event Status|Event Guest Count|Event Sales Manager|Event Manager|Account|Contact|Email|Phone|Golf Bays|Bay Validation|Catering Location|Booking Type";
+      for(const line of lines){
+        const m=line.match(new RegExp(escaped+"\\s*:\\s*(.*?)(?=\\s+(?:"+allLabels+")\\s*:|$)","i"));
+        if(m){
+          const value=clean(m[1]);
+          if(value)return value;
+        }
+      }
+      return null;
+    }
+
+    function extractFinancials(lines){
+      const categories={Food:0,Beverages:0,NA:0,Gameplay:0,Retail:0,Labor:0,"Other Fees":0};
+      const detected={};
+      const otherBreakdown=[];
+
+      for(const line of lines){
+        const m=line.match(/^(.+?)\s+TOTAL\s*:\s*USD\s*([\d,.]+)/i);
+        if(!m)continue;
+
+        const rawLabel=clean(m[1]);
+        const amount=parseMoney(m[2]);
+        if(amount===null)continue;
+
+        const category=mapRevenueCategory(rawLabel);
+        if(category==="Other Fees"){
+          categories[category]+=amount;
+          otherBreakdown.push(rawLabel+" "+formatMoney(amount));
+        }else{
+          categories[category]+=amount;
+        }
+        detected[category]=true;
+      }
+
+      const billingHeaderIndex=lines.findIndex(l=>/^\s*Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges\s*$/i.test(l));
+      let subtotal=null,taxes=null,serviceCharge=null,adminFee=null,totalCharges=null;
+
+      if(billingHeaderIndex>=0&&lines[billingHeaderIndex+1]){
+        const amounts=(lines[billingHeaderIndex+1].match(/USD\s*[\d,.]+/gi)||[]).map(parseMoney);
+        subtotal=amounts[0]??null;
+        taxes=amounts[1]??null;
+        serviceCharge=amounts[2]??null;
+        adminFee=amounts[3]??null;
+        totalCharges=amounts[4]??null;
+      }
+
+      let payments=null,outstanding=null;
+      for(const line of lines){
+        let m=line.match(/^Total Payments\s+USD\s*([\d,.]+)/i);
+        if(m)payments=parseMoney(m[1]);
+        m=line.match(/^Total Outstanding Balance\s+USD\s*([\d,.]+)/i);
+        if(m)outstanding=parseMoney(m[1]);
+      }
+
+      return{categories,detected,otherBreakdown,subtotal,taxes,serviceCharge,adminFee,totalCharges,payments,outstanding};
+    }
+
+    function mapRevenueCategory(label){
+      const x=label.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+
+      if(/\bnon alcoholic\b|\bna beverage\b|\bna beverages\b/.test(x))return"NA";
+      if(/\bfood\b/.test(x)&&!/\bbeverage\b/.test(x))return"Food";
+      if(/\bbeverage\b|\bbar\b|\balcohol\b/.test(x))return"Beverages";
+      if(/\bgame ?play\b|\bgame\b/.test(x))return"Gameplay";
+      if(/\bretail\b|\bmerch/.test(x))return"Retail";
+      if(/\blabor\b|\blabour\b|\bstaff\b/.test(x))return"Labor";
+      return"Other Fees";
+    }
+
+    async function renderEventCard(group,index,total){
+      const p=group.parsed,f=p.financial;
+      const card=document.createElement("article");
+      card.className="event-card";
+
+      const preview=document.createElement("div");
+      preview.className="event-preview";
+      const canvas=document.createElement("canvas");
+      preview.appendChild(canvas);
+      await renderThumbnail(group.pdf,canvas);
+
+      const body=document.createElement("div");
+      body.className="event-card-body";
+
+      const kicker=document.createElement("div");
+      kicker.className="event-kicker";
+      const left=document.createElement("span");
+      left.textContent="Event "+String(index).padStart(2,"0");
+      const right=document.createElement("span");
+      right.textContent=group.pdf.numPages+(group.pdf.numPages===1?" page":" pages");
+      kicker.append(left,right);
+
+      const name=document.createElement("div");
+      name.className="event-name";
+      name.textContent=p.name;
+
+      const meta=document.createElement("div");
+      meta.className="event-meta";
+      [["Date",p.date],["Time",p.time],["Guests",p.guests]].forEach(pair=>{
+        if(!pair[1])return;
+        const chip=document.createElement("span");
+        chip.className="meta-chip";
+        chip.textContent=pair[0]+": "+pair[1];
+        meta.appendChild(chip);
+      });
+
+      const finance=document.createElement("div");
+      finance.className="finance-wrap";
+      const financeTitle=document.createElement("div");
+      financeTitle.className="finance-title";
+      financeTitle.innerHTML="<span>Financials</span><span>"+(f.totalCharges!==null?formatMoney(f.totalCharges):"")+"</span>";
+
+      const financeGrid=document.createElement("div");
+      financeGrid.className="finance-grid";
+
+      ["Food","Beverages","NA","Gameplay","Retail","Labor","Other Fees"].forEach(label=>{
+        if(!f.detected[label]&&!(label==="Other Fees"&&f.categories[label]>0))return;
+        financeGrid.appendChild(makeFinanceItem(label,formatMoney(f.categories[label]),false,label==="Other Fees"?f.otherBreakdown.join(" · "):""));
+      });
+
+      [["Subtotal",f.subtotal],["Service Charge",f.serviceCharge],["Admin Fee",f.adminFee],["Taxes",f.taxes],["Total Charges",f.totalCharges],["Payments",f.payments],["Outstanding",f.outstanding]].forEach(pair=>{
+        if(pair[1]===null)return;
+        financeGrid.appendChild(makeFinanceItem(pair[0],formatMoney(pair[1]),pair[0]==="Total Charges",""));
+      });
+
+      finance.append(financeTitle,financeGrid);
+
+      const button=document.createElement("button");
+      button.type="button";
+      button.className="preview-button";
+      button.textContent="Preview event BEO";
+      button.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
+      preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
+
+      body.append(kicker,name,meta,finance,button);
+      card.append(preview,body);
+      return card;
+    }
+
+    function makeFinanceItem(label,value,total,detail){
+      const item=document.createElement("div");
+      item.className="finance-item"+(total?" total":"");
+      const l=document.createElement("div");
+      l.className="finance-label";
+      l.textContent=label;
+      const v=document.createElement("div");
+      v.className="finance-value";
+      v.textContent=value;
+      item.append(l,v);
+
+      if(detail){
+        const d=document.createElement("div");
+        d.className="other-detail";
+        d.textContent=detail;
+        item.appendChild(d);
+      }
+      return item;
+    }
+
+    async function renderThumbnail(pdf,canvas){
+      const page=await pdf.getPage(1);
+      const base=page.getViewport({scale:1});
+      const scale=Math.min(300/base.width,175/base.height);
+      const viewport=page.getViewport({scale});
+      const output=Math.min(devicePixelRatio||1,2);
+      const ctx=canvas.getContext("2d");
+      canvas.width=Math.floor(viewport.width*output);
+      canvas.height=Math.floor(viewport.height*output);
+      canvas.style.width=Math.floor(viewport.width)+"px";
+      canvas.style.height=Math.floor(viewport.height)+"px";
+      await page.render({canvasContext:ctx,viewport,transform:output!==1?[output,0,0,output,0,0]:null}).promise;
+    }
+
+    async function openPreview(pdf,name){
+      activePreviewPdf=pdf;
+      activePreviewPage=1;
+      modalEventName.textContent=name||"Event BEO";
+      pdfModal.classList.add("open");
+      pdfModal.setAttribute("aria-hidden","false");
+      document.body.style.overflow="hidden";
+      await renderModalPage();
+    }
+
+    async function renderModalPage(){
+      if(!activePreviewPdf)return;
+      prevPage.disabled=activePreviewPage<=1;
+      nextPage.disabled=activePreviewPage>=activePreviewPdf.numPages;
+      pageCounter.textContent=activePreviewPage+" of "+activePreviewPdf.numPages;
+
+      if(modalRenderTask){
+        try{modalRenderTask.cancel()}catch(_){}
+        modalRenderTask=null;
+      }
+
+      modalCanvas.style.display="none";
+      modalLoading.style.display="block";
+
+      try{
+        const page=await activePreviewPdf.getPage(activePreviewPage);
+        const base=page.getViewport({scale:1});
+        const scale=Math.min((innerWidth*.82)/base.width,(innerHeight*.75)/base.height,1.7);
+        const viewport=page.getViewport({scale});
+        const output=Math.min(devicePixelRatio||1,2);
+        const ctx=modalCanvas.getContext("2d");
+
+        modalCanvas.width=Math.floor(viewport.width*output);
+        modalCanvas.height=Math.floor(viewport.height*output);
+        modalCanvas.style.width=Math.floor(viewport.width)+"px";
+        modalCanvas.style.height=Math.floor(viewport.height)+"px";
+
+        modalRenderTask=page.render({canvasContext:ctx,viewport,transform:output!==1?[output,0,0,output,0,0]:null});
+        await modalRenderTask.promise;
+        modalLoading.style.display="none";
+        modalCanvas.style.display="block";
+        modalRenderTask=null;
+      }catch(err){
+        if(err&&err.name!=="RenderingCancelledException")console.error(err);
+      }
+    }
+
+    function closePreview(){
+      pdfModal.classList.remove("open");
+      pdfModal.setAttribute("aria-hidden","true");
+      document.body.style.overflow="";
+      activePreviewPdf=null;
+      activePreviewPage=1;
+      if(modalRenderTask){try{modalRenderTask.cancel()}catch(_){}modalRenderTask=null}
+    }
+
+    prevPage.addEventListener("click",()=>{if(activePreviewPdf&&activePreviewPage>1){activePreviewPage--;renderModalPage()}});
+    nextPage.addEventListener("click",()=>{if(activePreviewPdf&&activePreviewPage<activePreviewPdf.numPages){activePreviewPage++;renderModalPage()}});
+    modalClose.addEventListener("click",closePreview);
+    pdfModal.addEventListener("click",e=>{if(e.target===pdfModal)closePreview()});
+    document.addEventListener("keydown",e=>{
+      if(!pdfModal.classList.contains("open"))return;
+      if(e.key==="Escape")closePreview();
+      if(e.key==="ArrowLeft"&&activePreviewPage>1){activePreviewPage--;renderModalPage()}
+      if(e.key==="ArrowRight"&&activePreviewPdf&&activePreviewPage<activePreviewPdf.numPages){activePreviewPage++;renderModalPage()}
+    });
+
+    async function extractLines(page){
+      const content=await page.getTextContent();
+      const items=content.items.filter(i=>i.str&&i.str.trim()).map(i=>({text:i.str.trim(),x:(i.transform&&i.transform[4])||0,y:(i.transform&&i.transform[5])||0,width:i.width||0}));
+      const rows=[];
+      for(const item of items){
+        let row=rows.find(r=>Math.abs(r.y-item.y)<=2.25);
+        if(!row){row={y:item.y,items:[]};rows.push(row)}
+        row.items.push(item);
+      }
+      rows.sort((a,b)=>b.y-a.y);
+      return rows.map(row=>{
+        row.items.sort((a,b)=>a.x-b.x);
+        let line="",right=null;
+        for(const item of row.items){
+          if(right!==null)line+=item.x-right>8?"  ":" ";
+          line+=item.text;
+          right=item.x+item.width;
+        }
+        return clean(line);
+      }).filter(Boolean);
+    }
+
+    async function terminalMessage(message,tone=""){
+      const line=document.createElement("div");
+      line.className="terminal-line"+(tone?" "+tone:"");
+      const prompt=document.createElement("span");
+      prompt.className="prompt";
+      prompt.textContent=tone==="success"?"✓":">";
+      const content=document.createElement("span");
+      line.append(prompt,content);
+      terminal.appendChild(line);
+
+      if(reduced){
+        content.textContent=message;
+        return;
+      }
+
+      const cursor=document.createElement("span");
+      cursor.className="cursor";
+      content.appendChild(cursor);
+
+      for(let i=0;i<message.length;i++){
+        cursor.insertAdjacentText("beforebegin",message[i]);
+        terminal.scrollTop=terminal.scrollHeight;
+        await delay(2+Math.random()*3);
+      }
+
+      cursor.remove();
+      await delay(12);
+    }
+
+    function parseMoney(value){
+      const n=Number(String(value||"").replace(/USD|\$|,/gi,"").trim());
+      return Number.isFinite(n)?n:null;
+    }
+    function formatMoney(value){
+      if(value===null||!Number.isFinite(value))return"—";
+      return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(value);
+    }
+    function clean(v){return String(v||"").replace(/\s+/g," ").replace(/^[-–—|]+|[-–—|]+$/g,"").trim()}
+    function esc(v){return String(v).replace(/[-\/\\^$*+?.()|[\]{}]/g,"\\    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
     pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
     const $=(id)=>document.getElementById(id);
@@ -444,6 +979,10 @@
     function esc(v){return v.replace(/[-\/\\^$*+?.()|[\]{}]/g,"\\$&")}
     function formatBytes(b){if(!Number.isFinite(b)||b<=0)return"PDF";if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB"}
     function delay(ms){return new Promise(r=>setTimeout(r,ms))}
+")}
+    function formatBytes(b){if(!Number.isFinite(b)||b<=0)return"PDF";if(b<1024)return b+" B";if(b<1048576)return(b/1024).toFixed(1)+" KB";return(b/1048576).toFixed(1)+" MB"}
+    function delay(ms){return new Promise(r=>setTimeout(r,ms))}
+
   </script>
 </body>
 </html>
