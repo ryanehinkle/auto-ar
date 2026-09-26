@@ -51,7 +51,7 @@
     .scan-panel{margin-bottom:20px}
     .scan-panel .terminal{min-height:0;max-height:190px}
     .scan-progress{height:3px;background:#24242a;overflow:hidden}
-    .scan-progress-bar{width:0;height:100%;background:#5e93cc;transition:width .16s ease}
+    .scan-progress-bar{width:0;height:100%;background:#5e93cc;transition:width .65s cubic-bezier(.22,.61,.36,1);will-change:width}
     .events-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:28px 0 14px}
     .events-title-group{display:flex;align-items:center;gap:16px;min-width:0;justify-self:start}
     .events-head h2{font-size:1.1rem;color:#f4f4f6}
@@ -72,6 +72,8 @@
     .export-button:disabled{opacity:.4;cursor:default}
     .events-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
     .event-card{min-width:0;overflow:hidden;border:1px solid #303036;border-radius:13px;background:#18181b;box-shadow:0 12px 34px rgba(0,0,0,.22);transition:transform .16s ease,border-color .16s ease}
+    .event-card.event-enter{animation:eventCardIn .42s cubic-bezier(.2,.78,.25,1) both}
+    @keyframes eventCardIn{0%{opacity:0;transform:translateY(14px) scale(.985)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
     .event-card:hover{transform:translateY(-2px);border-color:#494951}
     .add-event-slot{min-height:260px;display:grid;place-items:center;align-self:stretch}
     .add-event-slot:nth-child(3n+1){grid-column:1/-1}
@@ -372,7 +374,7 @@
           const lines=await extractLines(page);
           const text=lines.join("\n");
           pageRecords.push({pageNumber:n,lines,text});
-          scanProgressBar.style.width=Math.round((n/sourcePdf.numPages)*38)+"%";
+          scanProgressBar.style.width=((n/sourcePdf.numPages)*38).toFixed(2)+"%";
         }
 
         const groups=buildEventGroups(pageRecords);
@@ -465,7 +467,7 @@
           const detail=[parsed.name,parsed.date,parsed.time,parsed.guests?parsed.guests+" guests":null].filter(Boolean).join(" · ");
           await terminalMessage(String(index).padStart(2,"0")+"/"+String(groups.length).padStart(2,"0")+"  "+detail,"success");
 
-          scanProgressBar.style.width=(38+Math.round((index/groups.length)*62))+"%";
+          scanProgressBar.style.width=(38+((index/groups.length)*62)).toFixed(2)+"%";
         }
 
         status.innerHTML='<span class="status-dot"></span> Complete';
@@ -1757,7 +1759,7 @@
     async function renderEventCard(group,index,total){
       const p=group.parsed,f=p.financial;
       const card=document.createElement("article");
-      card.className="event-card";
+      card.className="event-card event-enter";
 
       const preview=document.createElement("div");
       preview.className="event-preview";
