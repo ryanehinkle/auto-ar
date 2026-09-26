@@ -255,7 +255,7 @@
           <span id="eventsProgressText" class="events-progress-text">0/0</span>
         </div>
       </div>
-      <a id="portfolioSalesLink" class="portfolio-sales" href="#" target="_blank" rel="noopener noreferrer" data-hover="Click once to copy,Atwice to view Toast report" aria-live="polite" aria-label="Click to copy total sales. Double-click to open Toast report.">
+      <a id="portfolioSalesLink" class="portfolio-sales" href="#" target="_blank" rel="noopener noreferrer" data-hover="Copy / View Toast report" aria-live="polite" aria-label="Click to copy total sales. Double-click to open Toast report.">
         <div id="portfolioSalesValue" class="portfolio-sales-value">$0.00</div>
         <div id="portfolioSalesDate" class="portfolio-sales-date">—</div>
       </a>
@@ -337,7 +337,7 @@
       portfolioSalesLink.dataset.hover="Copied "+amount;
       clearTimeout(portfolioSalesLink._copyResetTimer);
       portfolioSalesLink._copyResetTimer=setTimeout(()=>{
-        portfolioSalesLink.dataset.hover="Click once to copy,\ntwice to view Toast report";
+        portfolioSalesLink.dataset.hover="Copy / View Toast report";
       },900);
     });
     portfolioSalesLink.addEventListener("dblclick",(event)=>{
