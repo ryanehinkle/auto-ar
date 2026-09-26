@@ -85,8 +85,15 @@
     .add-event-button:hover{border-color:#4e6174;background:#171b20;color:#8fa9c2;transform:scale(1.04)}
     .event-preview{position:relative;height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
     .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
-    .event-card-body{padding:15px}
+    .event-card-body{position:relative;padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.72rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+    .event-entered-check{position:absolute;right:15px;top:43px;width:25px;height:25px;display:grid;place-items:center;border:1px solid #454b53;border-radius:7px;background:#131519;color:transparent;cursor:pointer;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .12s ease}
+    .event-entered-check:hover{border-color:#5f7893;background:#171b20}
+    .event-entered-check:active{transform:scale(.93)}
+    .event-entered-check::after{content:"✓";font-size:.88rem;font-weight:950;line-height:1;transform:scale(.45) rotate(-10deg);opacity:0;transition:transform .2s cubic-bezier(.2,.85,.25,1.25),opacity .14s ease}
+    .event-entered-check.checked{border-color:#72c98a;background:#173421;box-shadow:0 0 0 2px rgba(101,180,126,.08),0 4px 14px rgba(0,0,0,.2)}
+    .event-entered-check.checked::after{color:#9be0ad;opacity:1;transform:scale(1) rotate(0)}
+    .event-entered-check:focus-visible{outline:2px solid #6f9fd1;outline-offset:2px}
     .event-toast-link{color:inherit;text-decoration:none;cursor:pointer;transition:color .14s ease,text-shadow .14s ease}
     .event-toast-link:hover,.event-toast-link:focus-visible{color:#3f6f9f;text-shadow:0 0 10px rgba(63,111,159,.22)}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
@@ -620,6 +627,27 @@
         "&startDate="+reportDate+
         "&endDate="+reportDate+
         "&locations=FvXo0LDEQMCc%2BUtBtxDWLQ%3D%3D";
+    }
+    function eventEnteredStorageKey(eventCard,eventDate){
+      const card=String(eventCard||"").trim();
+      const date=String(eventDate||"").trim();
+      if(!card)return null;
+      return "armatic-entered:"+date+":"+card;
+    }
+
+    function getEventEntered(eventCard,eventDate){
+      const key=eventEnteredStorageKey(eventCard,eventDate);
+      if(!key)return false;
+      try{return localStorage.getItem(key)==="1"}catch(_){return false}
+    }
+
+    function setEventEntered(eventCard,eventDate,entered){
+      const key=eventEnteredStorageKey(eventCard,eventDate);
+      if(!key)return;
+      try{
+        if(entered)localStorage.setItem(key,"1");
+        else localStorage.removeItem(key);
+      }catch(_){}
     }
 
     function extractFullEventTitle(lines){
@@ -1874,6 +1902,32 @@
       right.textContent=group.pdf.numPages+(group.pdf.numPages===1?" page":" pages");
       kicker.append(left,right);
 
+      const enteredCheck=document.createElement("button");
+      enteredCheck.type="button";
+      enteredCheck.className="event-entered-check";
+      enteredCheck.title="Mark event as entered";
+      enteredCheck.setAttribute("aria-label","Mark event as entered");
+
+      const syncEnteredCheck=(entered)=>{
+        enteredCheck.classList.toggle("checked",entered);
+        enteredCheck.setAttribute("aria-pressed",entered?"true":"false");
+        enteredCheck.title=entered?"Entered — click to uncheck":"Mark event as entered";
+        enteredCheck.setAttribute(
+          "aria-label",
+          entered?"Event entered. Click to uncheck.":"Mark event as entered"
+        );
+      };
+
+      syncEnteredCheck(getEventEntered(p.eventCard,p.date));
+
+      enteredCheck.addEventListener("click",(event)=>{
+        event.preventDefault();
+        event.stopPropagation();
+        const entered=!enteredCheck.classList.contains("checked");
+        setEventEntered(p.eventCard,p.date,entered);
+        syncEnteredCheck(entered);
+      });
+
       const name=document.createElement("div");
       name.className="event-name";
 
@@ -2129,7 +2183,7 @@
         }
       }
 
-      body.append(kicker,name,meta,contracted,additional);
+      body.append(kicker,enteredCheck,name,meta,contracted,additional);
       card.append(preview,body);
       group.cardElement=card;
       return card;
