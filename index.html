@@ -84,6 +84,7 @@
     .subtotal-check.visible{display:flex;animation:subtotalCheckPop .38s cubic-bezier(.2,.85,.25,1.25) forwards}
     .subtotal-check.pass{border:1px solid #8ad4a0;background:#dcf7e4;color:#257241}
     .subtotal-check.warn{border:1px solid #e6cc78;background:#fff4bf;color:#8a6b0b}
+    .subtotal-check.missing{border:1px solid #e88c8c;background:#ffe2e2;color:#a63838}
     .subtotal-check::after{content:attr(data-tooltip);position:absolute;left:0;top:34px;min-width:max-content;padding:6px 8px;border:1px solid #3b3b42;border-radius:7px;background:#17171b;color:#e2e2e7;font-size:.61rem;font-weight:750;letter-spacing:0;text-transform:none;white-space:pre-line;text-align:left;line-height:1.45;box-shadow:0 5px 16px rgba(0,0,0,.28);opacity:0;pointer-events:none;transform:translateY(-3px);transition:.14s ease}
     .subtotal-check:hover::after{opacity:1;transform:translateY(0)}
     @keyframes subtotalCheckPop{0%{opacity:0;transform:scale(.55) rotate(-14deg)}70%{opacity:1;transform:scale(1.12) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
@@ -94,6 +95,7 @@
     .event-tag.flex{border-color:#9dd7ab;background:#e1f6e6;color:#2f7041}
     .event-tag.faves,.event-tag.pleaser{border-color:#e5cf79;background:#fff4bf;color:#76620d}
     .event-tag.field-trip{border-color:#c5b4e8;background:#eee7ff;color:#5e4790}
+    .event-tag.play-it-forward{border-color:#9fc4ec;background:#e5f3ff;color:#2b648f}
     .event-tag.other{border-color:#c8c8cd;background:#ececef;color:#616169}
     .event-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
     .meta-chip{padding:5px 7px;border:1px solid #303038;border-radius:7px;background:#141418;color:#b6b6bf;font-size:.7rem;font-weight:700}
@@ -160,6 +162,7 @@
     .ar-calc-row.deduction span,.ar-calc-row.deduction strong{color:#d7b481}
 
     .ar-empty{padding:9px 1px;color:#777f88;font-size:.68rem}
+    .ar-no-toast{padding:10px 1px;color:#d98787;font-size:.7rem;font-weight:800}
     .ar-replace{display:none;margin-left:auto;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
     .ar-replace.visible{display:inline-block}
 
@@ -373,8 +376,42 @@
 
         for(const group of groups){
           group.parsed=parseEvent(group);
-          group.parsed.arProcessed=false;
-          group.parsed.arComparison=null;
+
+          if(group.parsed.tags.includes("Play It Forward")){
+            const zeroComparison={
+              items:[{
+                label:"Play It Forward",
+                actual:0,
+                contracted:0,
+                additional:0
+              }],
+              grossTotal:0,
+              fbMinimum:0,
+              flexAdjusted:false,
+              total:0,
+              subtotalCheck:{
+                pass:true,
+                toastTotalNetSales:0,
+                toastAdminFee:0,
+                toastServiceCharge:0,
+                totalAR:0,
+                expectedAR:0,
+                contractedSubtotal:0,
+                arDifference:0,
+                discrepancy:0
+              },
+              toastServiceCharge:0,
+              recognizedCount:1,
+              autoZero:true
+            };
+
+            group.parsed.arProcessed=true;
+            group.parsed.arComparison=zeroComparison;
+            group.arComparison=zeroComparison;
+          }else{
+            group.parsed.arProcessed=false;
+            group.parsed.arComparison=null;
+          }
         }
 
         groups.sort((a,b)=>{
@@ -524,6 +561,32 @@
         if(m)return clean(m[1]);
       }
       return null;
+    }
+
+    function isZeroPlayItForwardEvent(lines,text){
+      if(!/\bplay\s+it\s+forward\b/i.test(String(text||"")))return false;
+
+      for(let i=0;i<lines.length;i++){
+        const line=clean(lines[i]);
+        if(!/\bplay\s+it\s+forward\b/i.test(line))continue;
+
+        const nearby=clean(
+          line+" "+(lines[i+1]||"")+" "+(lines[i+2]||"")
+        );
+
+        const amounts=(nearby.match(/USD\s*-?[\d,.]+/gi)||[])
+          .map(parseMoney)
+          .filter(value=>value!==null);
+
+        if(
+          amounts.length &&
+          amounts.every(value=>Math.abs(Number(value)||0)<0.005)
+        ){
+          return true;
+        }
+      }
+
+      return false;
     }
 
     function detectEventTags(lines,text){
@@ -898,6 +961,7 @@
         "Space Rental":0,
         "Digital Media":0,
         Coach:0,
+        "Play It Forward":0,
         "F&B Minimum":0,
         "Other Fees":0
       };
@@ -1260,6 +1324,11 @@
         }
       }
 
+      if(tags.includes("Play It Forward")){
+        categories["Play It Forward"]=0;
+        detected["Play It Forward"]=true;
+      }
+
       const originalCategories={...categories};
       const incentiveAdjustments={};
 
@@ -1417,7 +1486,7 @@
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Coach","Retail","Labor","Equipment Rental","Space Rental","Digital Media","Other Fees"];
+      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Coach","Play It Forward","Retail","Labor","Equipment Rental","Space Rental","Digital Media","Other Fees"];
       const revenueItems=revenueOrder
         .map(label=>({
           label,
@@ -1426,7 +1495,11 @@
           originalValue:Number(f.originalCategories?.[label]??f.categories[label]??0),
           incentive:Number(f.incentiveAdjustments?.[label]||0)
         }))
-        .filter(item=>item.value>0.004||item.incentive>0.004)
+        .filter(item=>
+          item.value>0.004 ||
+          item.incentive>0.004 ||
+          (p.tags.includes("Play It Forward")&&item.label==="Play It Forward")
+        )
         .sort((a,b)=>b.value-a.value);
 
       for(const item of revenueItems){
@@ -1545,6 +1618,16 @@
         scanLog,
         arResults
       };
+
+      if(p.arProcessed&&p.arComparison){
+        renderAdditionalRevenue(arResults,p.arComparison);
+        updateSubtotalCheck(subtotalCheck,p.arComparison);
+
+        if(p.tags.includes("Play It Forward")){
+          pasteZone.style.display="none";
+          replaceButton.style.display="none";
+        }
+      }
 
       body.append(kicker,name,meta,contracted,additional);
       card.append(preview,body);
@@ -1761,7 +1844,18 @@
           const card=String(parsed?.eventCard||"").trim();
           const eventSales=byEvent.get(card);
 
-          if(!eventSales?.length)continue;
+          if(!eventSales?.length){
+            if(parsed?.tags?.includes("Play It Forward")){
+              // Known $0 Play It Forward events are valid without Toast rows.
+              if(parsed.arComparison){
+                renderAdditionalRevenue(group.ui.arResults,parsed.arComparison);
+                updateSubtotalCheck(group.ui.subtotalCheck,parsed.arComparison);
+              }
+            }else{
+              showNoToastData(group);
+            }
+            continue;
+          }
 
           const toast=makeToastDataFromCsvRows(eventSales);
           const comparison=compareAdditionalRevenue(
@@ -2453,7 +2547,10 @@
 
           const detail=document.createElement("div");
           detail.className="ar-item-detail";
-          detail.textContent="Toast "+formatMoney(item.actual)+" · Contracted "+formatMoney(item.contracted);
+          detail.textContent=
+            item.label==="Play It Forward"
+              ? "Contracted "+formatMoney(item.contracted)
+              : "Toast "+formatMoney(item.actual)+" · Contracted "+formatMoney(item.contracted);
 
           const value=document.createElement("div");
           value.className="ar-item-value";
@@ -2655,6 +2752,7 @@
         "Space Rental":"SPACE",
         "Digital Media":"DIGITAL MEDIA",
         Coach:"COACH",
+        "Play It Forward":"PLAY IT FORWARD",
         "Unused F&B":"UNUSED F&B",
         Other:"OTHER",
         "Other Fees":"OTHER",
@@ -3008,6 +3106,36 @@
       }
     }
 
+    function showNoToastData(group){
+      const parsed=group?.parsed;
+      const ui=group?.ui;
+      if(!parsed||!ui)return;
+
+      parsed.arProcessed=false;
+      parsed.arComparison=null;
+      group.arComparison=null;
+
+      ui.subtotalCheck.className="subtotal-check missing visible";
+      ui.subtotalCheck.textContent="?";
+      ui.subtotalCheck.dataset.tooltip="No Toast data found for this event";
+      ui.subtotalCheck.setAttribute(
+        "aria-label",
+        "No Toast data found for this event"
+      );
+
+      ui.arResults.replaceChildren();
+      const message=document.createElement("div");
+      message.className="ar-no-toast";
+      message.textContent="No Toast data found for this event";
+      ui.arResults.appendChild(message);
+
+      ui.scanLog.replaceChildren();
+      ui.scanLog.classList.remove("visible");
+      ui.pasteZone.classList.remove("processing");
+      ui.pasteZone.style.display="";
+      ui.replaceButton.classList.remove("visible");
+    }
+
     function updateSubtotalCheck(badge,comparison){
       if(!badge)return;
 
@@ -3062,6 +3190,7 @@
         "Space Rental":"space-rental",
         "Digital Media":"digital-media",
         Coach:"other",
+        "Play It Forward":"other",
         "Unused F&B":"unused-fb",
         Other:"other",
         "Other Fees":"other-fees",
