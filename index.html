@@ -73,6 +73,9 @@
     .events-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
     .event-card{min-width:0;overflow:hidden;border:1px solid #303036;border-radius:13px;background:#18181b;box-shadow:0 12px 34px rgba(0,0,0,.22);transition:transform .16s ease,border-color .16s ease}
     .event-card:hover{transform:translateY(-2px);border-color:#494951}
+    .add-event-slot{min-height:260px;display:grid;place-items:center;align-self:stretch}
+    .add-event-button{width:44px;height:44px;border:1px solid #30343a;border-radius:50%;background:#121417;color:#6f7780;font-size:1.55rem;font-weight:300;line-height:1;cursor:pointer;transition:.16s ease;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+    .add-event-button:hover{border-color:#4e6174;background:#171b20;color:#8fa9c2;transform:scale(1.04)}
     .event-preview{position:relative;height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
     .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
     .event-card-body{padding:15px}
@@ -462,6 +465,7 @@
         status.innerHTML='<span class="status-dot"></span> Complete';
         scanProgressBar.style.width="100%";
         toastUploadButton.disabled=false;
+        refreshAddEventSlot();
         await terminalMessage("All events separated and analyzed.","success");
       }catch(err){
         console.error(err);
@@ -1592,6 +1596,154 @@
         updatePortfolioSales();
       }catch(error){
         console.error("Event PDF replacement failed:",error);
+      }
+    }
+
+    function createAddEventSlot(){
+      const slot=document.createElement("div");
+      slot.className="add-event-slot";
+
+      const button=document.createElement("button");
+      button.type="button";
+      button.className="add-event-button";
+      button.textContent="+";
+      button.setAttribute("aria-label","Add event PDF");
+      button.title="Add event PDF";
+
+      button.addEventListener("click",()=>{
+        const input=document.createElement("input");
+        input.type="file";
+        input.accept="application/pdf,.pdf";
+        input.style.display="none";
+
+        input.addEventListener("change",async()=>{
+          const file=input.files&&input.files[0];
+          input.remove();
+
+          if(file){
+            await addIndividualEventPdf(file);
+          }
+        },{once:true});
+
+        document.body.appendChild(input);
+        input.click();
+      });
+
+      slot.appendChild(button);
+      return slot;
+    }
+
+    function refreshAddEventSlot(){
+      eventsGrid.querySelector(".add-event-slot")?.remove();
+
+      if(currentGroups.length){
+        eventsGrid.appendChild(createAddEventSlot());
+      }
+    }
+
+    async function addIndividualEventPdf(file){
+      if(!file)return;
+      if(
+        file.type!=="application/pdf" &&
+        !file.name.toLowerCase().endsWith(".pdf")
+      ){
+        return;
+      }
+
+      try{
+        const rawBytes=new Uint8Array(await file.arrayBuffer());
+        const rawPdf=await pdfjsLib.getDocument({
+          data:rawBytes.slice()
+        }).promise;
+
+        const records=await readPdfRecords(rawPdf);
+
+        if(!records.length){
+          return;
+        }
+
+        const evenBytes=await makeEvenPdfBytes(rawBytes);
+        const evenPdf=await pdfjsLib.getDocument({
+          data:evenBytes.slice()
+        }).promise;
+
+        const joinedText=records.map(record=>record.text).join("\n");
+        const beoMatch=joinedText.match(/\bBEO\s*#\s*:?\s*(\d+)/i);
+
+        const group={
+          beoNumber:beoMatch?beoMatch[1]:"added-"+Date.now(),
+          records,
+          pageNumbers:records.map((_,index)=>index),
+          pdfBytes:evenBytes,
+          pdf:evenPdf,
+          addedPdf:true
+        };
+
+        group.parsed=parseEvent(group);
+
+        if(group.parsed.tags.includes("Play It Forward")){
+          const zeroComparison=makeZeroPlayItForwardComparison();
+          group.parsed.arProcessed=true;
+          group.parsed.arComparison=zeroComparison;
+          group.arComparison=zeroComparison;
+        }else{
+          const csvRows=currentToastByEvent.get(
+            String(group.parsed.eventCard||"").trim()
+          );
+
+          if(csvRows?.length){
+            const toast=makeToastDataFromCsvRows(csvRows);
+            const comparison=compareAdditionalRevenue(
+              toast,
+              group.parsed.financial,
+              group.parsed
+            );
+
+            group.toastData=toast;
+            group.parsed.arProcessed=true;
+            group.parsed.arComparison=comparison;
+            group.arComparison=comparison;
+          }else{
+            group.parsed.arProcessed=false;
+            group.parsed.arComparison=null;
+            group.arComparison=null;
+          }
+        }
+
+        currentGroups.push(group);
+
+        const card=await renderEventCard(
+          group,
+          currentGroups.length,
+          currentGroups.length
+        );
+
+        const slot=eventsGrid.querySelector(".add-event-slot");
+
+        if(slot){
+          slot.before(card);
+        }else{
+          eventsGrid.appendChild(card);
+        }
+
+        if(group.toastData&&group.ui){
+          group.ui.contracted.open=false;
+        }else if(
+          currentToastByEvent.size>0 &&
+          !group.parsed.tags.includes("Play It Forward")
+        ){
+          showNoToastData(group);
+        }
+
+        eventCount.textContent=
+          currentGroups.length+
+          (currentGroups.length===1?" event":" events");
+
+        updateEventsProgress();
+        updatePortfolioSales();
+        refreshAddEventSlot();
+      }catch(error){
+        console.error("Add event PDF failed:",error);
       }
     }
 
