@@ -2424,8 +2424,30 @@
 
       const items=[];
       const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
+
+      // AR treats all beverage-package revenue and day-of Beer/Liquor/Wine
+      // as one L/B/W bucket. "Beverages" remains separate only in Contracted.
+      if(recognized.has("Beverages")||recognized.has("LBW")){
+        const actual=
+          Number(toast.Beverages||0)+
+          Number(toast.LBW||0);
+        const base=
+          Number(contracted.Beverages||0)+
+          Number(contracted.LBW||0);
+        const additional=actual-base;
+
+        if(Math.abs(additional)>0.004){
+          items.push({
+            label:"LBW",
+            actual,
+            contracted:base,
+            additional
+          });
+        }
+      }
+
       const expectedLabels=[
-        "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
+        "Food","NA","Gameplay","Retail","Labor",
         "Equipment Rental","Space Rental","Digital Media","Coach",
         "Other Fees","Voluntary Tip","Admin Fee"
       ];
