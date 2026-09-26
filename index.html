@@ -88,12 +88,19 @@
     .event-card-body{position:relative;padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.72rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-entered-check{position:absolute;right:15px;top:43px;width:25px;height:25px;display:grid;place-items:center;border:1px solid #454b53;border-radius:7px;background:#131519;color:transparent;cursor:pointer;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .12s ease}
-    .event-entered-check:hover{border-color:#5f7893;background:#171b20}
+    .event-entered-check:hover{border-color:#6f9fd1;background:#17202a}
     .event-entered-check:active{transform:scale(.93)}
     .event-entered-check::after{content:"✓";font-size:.88rem;font-weight:950;line-height:1;transform:scale(.45) rotate(-10deg);opacity:0;transition:transform .2s cubic-bezier(.2,.85,.25,1.25),opacity .14s ease}
-    .event-entered-check.checked{border-color:#72c98a;background:#173421;box-shadow:0 0 0 2px rgba(101,180,126,.08),0 4px 14px rgba(0,0,0,.2)}
-    .event-entered-check.checked::after{color:#9be0ad;opacity:1;transform:scale(1) rotate(0)}
+    .event-entered-check.checked{border-color:#6f9fd1;background:#1a3550;box-shadow:0 0 0 2px rgba(81,133,189,.09),0 4px 14px rgba(0,0,0,.2)}
+    .event-entered-check.checked::after{color:#b9d8f6;opacity:1;transform:scale(1) rotate(0)}
     .event-entered-check:focus-visible{outline:2px solid #6f9fd1;outline-offset:2px}
+    .entered-progress-float{position:fixed;z-index:35;left:18px;top:104px;width:190px;padding:11px 12px;border:1px solid #2f3f50;border-radius:10px;background:rgba(18,20,24,.94);box-shadow:0 10px 30px rgba(0,0,0,.28);backdrop-filter:blur(8px);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-8px) scale(.97);transition:opacity .22s ease,transform .24s cubic-bezier(.2,.8,.2,1),visibility 0s linear .24s}
+    .entered-progress-float.visible{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition-delay:0s}
+    .entered-progress-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .entered-progress-label{color:#9fc4ec;font-size:.68rem;font-weight:900;letter-spacing:.055em;text-transform:uppercase}
+    .entered-progress-text{color:#bfc6cf;font-size:.68rem;font-weight:850;font-variant-numeric:tabular-nums}
+    .entered-progress-track{height:6px;overflow:hidden;border:1px solid #35404c;border-radius:999px;background:#242a31}
+    .entered-progress-bar{width:0;height:100%;border-radius:999px;background:#5e93cc;transition:width .3s cubic-bezier(.2,.75,.25,1)}
     .event-toast-link{color:inherit;text-decoration:none;cursor:pointer;transition:color .14s ease,text-shadow .14s ease}
     .event-toast-link:hover,.event-toast-link:focus-visible{color:#3f6f9f;text-shadow:0 0 10px rgba(63,111,159,.22)}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
@@ -279,6 +286,16 @@
     <div id="emptyEvents" class="empty-events">No events could be identified in this PDF.</div>
   </main>
 
+  <div id="enteredProgressFloat" class="entered-progress-float" aria-live="polite" aria-hidden="true">
+    <div class="entered-progress-head">
+      <span class="entered-progress-label">Entered</span>
+      <span id="enteredProgressText" class="entered-progress-text">0/0</span>
+    </div>
+    <div class="entered-progress-track">
+      <div id="enteredProgressBar" class="entered-progress-bar"></div>
+    </div>
+  </div>
+
   <div id="pdfModal" class="pdf-modal" aria-hidden="true">
     <section class="modal-window" role="dialog" aria-modal="true" aria-label="Event BEO preview">
       <div class="modal-topbar">
@@ -306,7 +323,7 @@
 
     const {PDFDocument,rgb,StandardFonts}=window.PDFLib;
     const $=(id)=>document.getElementById(id);
-    const pdfInput=$("pdfInput"),toastCsvInput=$("toastCsvInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),eventsProgressBar=$("eventsProgressBar"),eventsProgressText=$("eventsProgressText"),portfolioSalesLink=$("portfolioSalesLink"),portfolioSalesValue=$("portfolioSalesValue"),portfolioSalesDate=$("portfolioSalesDate"),toastUploadButton=$("toastUploadButton"),exportButton=$("exportButton"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
+    const pdfInput=$("pdfInput"),toastCsvInput=$("toastCsvInput"),landing=$("landing"),app=$("app"),uploadButton=$("uploadButton"),newFileButton=$("newFileButton"),uploadZone=$("uploadZone"),landingError=$("landingError"),appBrand=$("appBrand"),fileName=$("fileName"),fileMeta=$("fileMeta"),terminal=$("terminal"),status=$("status"),scanProgressBar=$("scanProgressBar"),eventsGrid=$("eventsGrid"),eventCount=$("eventCount"),eventsProgressBar=$("eventsProgressBar"),eventsProgressText=$("eventsProgressText"),enteredProgressFloat=$("enteredProgressFloat"),enteredProgressBar=$("enteredProgressBar"),enteredProgressText=$("enteredProgressText"),portfolioSalesLink=$("portfolioSalesLink"),portfolioSalesValue=$("portfolioSalesValue"),portfolioSalesDate=$("portfolioSalesDate"),toastUploadButton=$("toastUploadButton"),exportButton=$("exportButton"),emptyEvents=$("emptyEvents"),pdfModal=$("pdfModal"),modalEventName=$("modalEventName"),prevPage=$("prevPage"),nextPage=$("nextPage"),pageCounter=$("pageCounter"),modalClose=$("modalClose"),modalCanvas=$("modalCanvas"),modalLoading=$("modalLoading");
     const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let activePreviewPdf=null;
@@ -648,6 +665,19 @@
         if(entered)localStorage.setItem(key,"1");
         else localStorage.removeItem(key);
       }catch(_){}
+    }
+
+    function updateEnteredProgress(){
+      const total=currentGroups.length;
+      const checked=currentGroups.filter(group=>
+        getEventEntered(group?.parsed?.eventCard,group?.parsed?.date)
+      ).length;
+
+      enteredProgressText.textContent=checked+"/"+total;
+      enteredProgressBar.style.width=total?((checked/total)*100)+"%":"0%";
+      enteredProgressFloat.classList.toggle("visible",checked>0&&total>0);
+      enteredProgressFloat.setAttribute("aria-hidden",checked>0&&total>0?"false":"true");
+      enteredProgressBar.title=checked+" of "+total+" events entered";
     }
 
     function extractFullEventTitle(lines){
@@ -1926,6 +1956,7 @@
         const entered=!enteredCheck.classList.contains("checked");
         setEventEntered(p.eventCard,p.date,entered);
         syncEnteredCheck(entered);
+        updateEnteredProgress();
       });
 
       const name=document.createElement("div");
@@ -3230,6 +3261,7 @@
       eventsProgressText.textContent=passed+"/"+total;
       eventsProgressBar.style.width=total?((passed/total)*100)+"%":"0%";
       eventsProgressBar.title=passed+" of "+total+" events passed subtotal check";
+      updateEnteredProgress();
     }
 
     function getPortfolioSalesTotal(){
