@@ -122,9 +122,9 @@
     .contracted-summary::after{content:"⌄";color:#74747e;font-size:.9rem;transition:transform .16s ease}
     .contracted-details:not([open]) .contracted-summary::after{transform:rotate(-90deg)}
     .contracted-details .finance-wrap{margin-top:0;padding-top:0;border-top:0}
-    .replace-pdf-row{display:flex;justify-content:flex-end;margin-top:8px}
-    .replace-pdf-button{border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
+    .replace-pdf-button{margin-left:auto;margin-right:10px;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer;text-transform:none;letter-spacing:0}
     .replace-pdf-button:hover{color:#a9c8e8}
+    .contracted-details:not([open]) .replace-pdf-button{display:none}
     .additional-revenue{margin-top:12px;padding-top:12px;border-top:1px solid #29292f}
     .ar-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
     .ar-title{color:#d8d8de;font-size:.72rem;font-weight:900;letter-spacing:.065em;text-transform:uppercase}
@@ -1716,9 +1716,6 @@
         finance.appendChild(summary);
       }
 
-      const replacePdfRow=document.createElement("div");
-      replacePdfRow.className="replace-pdf-row";
-
       const replacePdfButton=document.createElement("button");
       replacePdfButton.type="button";
       replacePdfButton.className="replace-pdf-button";
@@ -1746,9 +1743,7 @@
         input.click();
       });
 
-      replacePdfRow.appendChild(replacePdfButton);
-      finance.appendChild(replacePdfRow);
-
+      contractedSummary.appendChild(replacePdfButton);
       contracted.append(contractedSummary,finance);
 
       const additional=document.createElement("section");
