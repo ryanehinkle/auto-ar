@@ -158,6 +158,8 @@
     .ar-calc-row.deduction span,.ar-calc-row.deduction strong{color:#d7b481}
 
     .ar-empty{padding:9px 1px;color:#777f88;font-size:.68rem}
+    .ar-service-note{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:7px;padding:7px 10px;border:1px solid #343941;border-radius:8px;background:#17191d;color:#9ea5ad;font-size:.66rem;font-weight:750}
+    .ar-service-note strong{color:#c9cdd3;font-size:.72rem;font-weight:900;font-variant-numeric:tabular-nums}
     .ar-replace{display:none;margin-left:auto;border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
     .ar-replace.visible{display:inline-block}
 
@@ -1583,6 +1585,19 @@
       return String(number<1000?1000+number:number);
     }
 
+    function isToastVoluntaryTipCategory(category){
+      const compact=String(category||"")
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[^a-z0-9]+/g,"");
+
+      return(
+        compact==="voluntarytip" ||
+        compact==="voluntarygratuity" ||
+        compact==="gratuity"
+      );
+    }
+
     function mapToastCsvCategory(category){
       const x=String(category||"")
         .toLowerCase()
@@ -1596,7 +1611,10 @@
       if(x==="game play"||x==="gameplay")return"Gameplay";
       if(x==="event drink package"||x==="drink package"||x==="beverage package")return"Beverages";
       if(x==="admin fee")return"Admin Fee";
-      if(x==="service charge"||x==="voluntarytip"||x==="voluntary tip"||x==="voluntary gratuity"||x==="gratuity")return"Service Charge";
+      if(
+        x==="service charge" ||
+        isToastVoluntaryTipCategory(category)
+      )return"Service Charge";
       if(x==="event - space rental"||x==="event space rental"||x==="space rental")return"Space Rental";
       if(x==="event - equipment rental"||x==="event equipment rental"||x==="equipment rental")return"Equipment Rental";
       if(x==="event - labor"||x==="event labor"||x==="labor"||x==="labour")return"Labor";
@@ -1627,6 +1645,7 @@
       };
       const recognized=new Set();
       let totalNetSales=0;
+      let voluntaryTipTotal=0;
 
       for(const row of rows){
         const net=csvNumber(row.netSales);
@@ -1637,10 +1656,15 @@
 
         totals[mapped]=(totals[mapped]||0)+net;
         recognized.add(mapped);
+
+        if(isToastVoluntaryTipCategory(row.category)){
+          voluntaryTipTotal+=net;
+        }
       }
 
       totals.__recognized=recognized;
       totals.__totalNetSales=totalNetSales;
+      totals.__voluntaryTip=voluntaryTipTotal;
       totals.__source="csv";
       return totals;
     }
@@ -2316,6 +2340,7 @@
 
       const toastAdminFee=Number(toast["Admin Fee"]||0);
       const toastServiceCharge=Number(toast["Service Charge"]||0);
+      const toastVoluntaryTip=Number(toast.__voluntaryTip||0);
 
       // Base the check on the category totals actually shown in Contracted,
       // rather than a separately parsed hidden amount.
@@ -2369,6 +2394,8 @@
         flexAdjusted:isFlex&&fbMinimum>0.004,
         total,
         subtotalCheck,
+        toastServiceCharge,
+        toastVoluntaryTip,
         recognizedCount:recognized.size
       };
     }
@@ -2404,6 +2431,25 @@
           row.append(left,value);
           container.appendChild(row);
         }
+      }
+
+      if(
+        Number(comparison.toastServiceCharge||0)>0.004
+      ){
+        const serviceNote=document.createElement("div");
+        serviceNote.className="ar-service-note";
+
+        const serviceLabel=document.createElement("span");
+        serviceLabel.textContent=
+          Number(comparison.toastVoluntaryTip||0)>0.004
+            ? "Service Charge (Voluntary Tip)"
+            : "Service Charge";
+
+        const serviceValue=document.createElement("strong");
+        serviceValue.textContent=formatMoney(comparison.toastServiceCharge);
+
+        serviceNote.append(serviceLabel,serviceValue);
+        container.appendChild(serviceNote);
       }
 
       if(comparison.flexAdjusted){
