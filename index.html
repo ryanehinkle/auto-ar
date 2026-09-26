@@ -314,34 +314,41 @@
     uploadButton.addEventListener("click",()=>pdfInput.click());
     newFileButton.addEventListener("click",()=>pdfInput.click());
     exportButton.addEventListener("click",exportAnnotatedPdf);
-    portfolioSalesLink.addEventListener("click",async(event)=>{
+    portfolioSalesLink.addEventListener("click",(event)=>{
       event.preventDefault();
 
-      const amount=portfolioSalesValue.textContent.trim();
-      if(!amount)return;
+      clearTimeout(portfolioSalesLink._singleClickTimer);
+      portfolioSalesLink._singleClickTimer=setTimeout(async()=>{
+        const amount=portfolioSalesValue.textContent.trim();
+        if(!amount)return;
 
-      try{
-        await navigator.clipboard.writeText(amount);
-      }catch(_){
-        const textarea=document.createElement("textarea");
-        textarea.value=amount;
-        textarea.setAttribute("readonly","");
-        textarea.style.position="fixed";
-        textarea.style.opacity="0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        textarea.remove();
-      }
+        try{
+          await navigator.clipboard.writeText(amount);
+        }catch(_){
+          const textarea=document.createElement("textarea");
+          textarea.value=amount;
+          textarea.setAttribute("readonly","");
+          textarea.style.position="fixed";
+          textarea.style.opacity="0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          textarea.remove();
+        }
 
-      portfolioSalesLink.dataset.hover="Copied "+amount;
-      clearTimeout(portfolioSalesLink._copyResetTimer);
-      portfolioSalesLink._copyResetTimer=setTimeout(()=>{
-        portfolioSalesLink.dataset.hover="Copy / View Toast";
-      },900);
+        portfolioSalesLink.dataset.hover="Copied "+amount;
+        clearTimeout(portfolioSalesLink._copyResetTimer);
+        portfolioSalesLink._copyResetTimer=setTimeout(()=>{
+          portfolioSalesLink.dataset.hover="Copy / View Toast";
+        },900);
+      },260);
     });
     portfolioSalesLink.addEventListener("dblclick",(event)=>{
       event.preventDefault();
+      clearTimeout(portfolioSalesLink._singleClickTimer);
+      clearTimeout(portfolioSalesLink._copyResetTimer);
+      portfolioSalesLink.dataset.hover="Copy / View Toast";
+
       const toastReportUrl=getToastReportUrl();
       if(toastReportUrl)window.open(toastReportUrl,"_blank","noopener,noreferrer");
     });
