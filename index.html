@@ -122,6 +122,9 @@
     .contracted-summary::after{content:"⌄";color:#74747e;font-size:.9rem;transition:transform .16s ease}
     .contracted-details:not([open]) .contracted-summary::after{transform:rotate(-90deg)}
     .contracted-details .finance-wrap{margin-top:0;padding-top:0;border-top:0}
+    .replace-pdf-row{display:flex;justify-content:flex-end;margin-top:8px}
+    .replace-pdf-button{border:0;background:transparent;color:#7898b9;font-size:.62rem;font-weight:800;cursor:pointer}
+    .replace-pdf-button:hover{color:#a9c8e8}
     .additional-revenue{margin-top:12px;padding-top:12px;border-top:1px solid #29292f}
     .ar-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
     .ar-title{color:#d8d8de;font-size:.72rem;font-weight:900;letter-spacing:.065em;text-transform:uppercase}
@@ -286,6 +289,7 @@
     let currentSourceBytes=null;
     let currentSourcePdfJs=null;
     let currentGroups=[];
+    let currentToastByEvent=new Map();
     let currentUploadName="Automatic-AR.pdf";
     let portfolioSalesDisplay=0;
     let portfolioSalesAnimation=null;
@@ -326,6 +330,7 @@
       currentSourceBytes=null;
       currentSourcePdfJs=null;
       currentGroups=[];
+      currentToastByEvent=new Map();
       currentUploadName=file.name;
       exportButton.disabled=true;
       toastUploadButton.disabled=true;
@@ -1423,6 +1428,158 @@
       return"Other Fees";
     }
 
+    async function readPdfRecords(pdf){
+      const records=[];
+
+      for(let n=1;n<=pdf.numPages;n++){
+        const page=await pdf.getPage(n);
+        const lines=await extractLines(page);
+        records.push({
+          pageNumber:n,
+          lines,
+          text:lines.join("\n")
+        });
+      }
+
+      return records;
+    }
+
+    async function makeEvenPdfBytes(bytes){
+      const doc=await PDFDocument.load(bytes.slice());
+
+      if(doc.getPageCount()%2===1){
+        const last=doc.getPage(doc.getPageCount()-1);
+        doc.addPage([last.getWidth(),last.getHeight()]);
+      }
+
+      return new Uint8Array(await doc.save());
+    }
+
+    function makeZeroPlayItForwardComparison(){
+      return{
+        items:[{
+          label:"Play It Forward",
+          actual:0,
+          contracted:0,
+          additional:0
+        }],
+        grossTotal:0,
+        fbMinimum:0,
+        flexAdjusted:false,
+        total:0,
+        subtotalCheck:{
+          pass:true,
+          toastTotalNetSales:0,
+          toastAdminFee:0,
+          toastServiceCharge:0,
+          totalAR:0,
+          expectedAR:0,
+          contractedSubtotal:0,
+          arDifference:0,
+          discrepancy:0
+        },
+        toastServiceCharge:0,
+        recognizedCount:1,
+        autoZero:true
+      };
+    }
+
+    async function replaceEventPdf(group,file){
+      if(!file)return;
+      if(
+        file.type!=="application/pdf" &&
+        !file.name.toLowerCase().endsWith(".pdf")
+      ){
+        return;
+      }
+
+      try{
+        const rawBytes=new Uint8Array(await file.arrayBuffer());
+        const sourcePdf=await pdfjsLib.getDocument({
+          data:rawBytes.slice()
+        }).promise;
+
+        const records=await readPdfRecords(sourcePdf);
+        const evenBytes=await makeEvenPdfBytes(rawBytes);
+        const evenPdf=await pdfjsLib.getDocument({
+          data:evenBytes.slice()
+        }).promise;
+
+        const previousCard=group.cardElement;
+        const previousToast=group.toastData||null;
+
+        group.records=records;
+        group.pageNumbers=records.map((_,index)=>index);
+        group.pdfBytes=evenBytes;
+        group.pdf=evenPdf;
+        group.replacedPdf=true;
+
+        const beoMatch=records
+          .map(record=>record.text)
+          .join("\n")
+          .match(/\bBEO\s*#\s*:?\s*(\d+)/i);
+
+        if(beoMatch){
+          group.beoNumber=beoMatch[1];
+        }
+
+        group.parsed=parseEvent(group);
+
+        let toastData=previousToast;
+        const csvRows=currentToastByEvent.get(
+          String(group.parsed.eventCard||"").trim()
+        );
+
+        if(csvRows?.length){
+          toastData=makeToastDataFromCsvRows(csvRows);
+        }
+
+        if(group.parsed.tags.includes("Play It Forward")){
+          const zeroComparison=makeZeroPlayItForwardComparison();
+          group.toastData=null;
+          group.parsed.arProcessed=true;
+          group.parsed.arComparison=zeroComparison;
+          group.arComparison=zeroComparison;
+        }else if(toastData){
+          const comparison=compareAdditionalRevenue(
+            toastData,
+            group.parsed.financial,
+            group.parsed
+          );
+
+          group.toastData=toastData;
+          group.parsed.arProcessed=true;
+          group.parsed.arComparison=comparison;
+          group.arComparison=comparison;
+        }else{
+          group.toastData=null;
+          group.parsed.arProcessed=false;
+          group.parsed.arComparison=null;
+          group.arComparison=null;
+        }
+
+        const index=currentGroups.indexOf(group);
+        const newCard=await renderEventCard(
+          group,
+          index>=0?index+1:1,
+          currentGroups.length
+        );
+
+        if(previousCard&&previousCard.isConnected){
+          previousCard.replaceWith(newCard);
+        }
+
+        if(group.toastData&&group.ui){
+          group.ui.contracted.open=false;
+        }
+
+        updateEventsProgress();
+        updatePortfolioSales();
+      }catch(error){
+        console.error("Event PDF replacement failed:",error);
+      }
+    }
+
     async function renderEventCard(group,index,total){
       const p=group.parsed,f=p.financial;
       const card=document.createElement("article");
@@ -1554,6 +1711,39 @@
         finance.appendChild(summary);
       }
 
+      const replacePdfRow=document.createElement("div");
+      replacePdfRow.className="replace-pdf-row";
+
+      const replacePdfButton=document.createElement("button");
+      replacePdfButton.type="button";
+      replacePdfButton.className="replace-pdf-button";
+      replacePdfButton.textContent="Replace with new PDF";
+
+      replacePdfButton.addEventListener("click",(event)=>{
+        event.preventDefault();
+        event.stopPropagation();
+
+        const input=document.createElement("input");
+        input.type="file";
+        input.accept="application/pdf,.pdf";
+        input.style.display="none";
+
+        input.addEventListener("change",async()=>{
+          const file=input.files&&input.files[0];
+          input.remove();
+
+          if(file){
+            await replaceEventPdf(group,file);
+          }
+        },{once:true});
+
+        document.body.appendChild(input);
+        input.click();
+      });
+
+      replacePdfRow.appendChild(replacePdfButton);
+      finance.appendChild(replacePdfRow);
+
       contracted.append(contractedSummary,finance);
 
       const additional=document.createElement("section");
@@ -1635,6 +1825,7 @@
 
       body.append(kicker,name,meta,contracted,additional);
       card.append(preview,body);
+      group.cardElement=card;
       return card;
     }
 
@@ -1841,6 +2032,8 @@
           });
         }
 
+        currentToastByEvent=byEvent;
+
         let matched=0;
 
         for(const group of currentGroups){
@@ -1868,6 +2061,7 @@
             parsed
           );
 
+          group.toastData=toast;
           parsed.arProcessed=true;
           parsed.arComparison=comparison;
           group.arComparison=comparison;
@@ -1940,6 +2134,7 @@
 
         const toast=parseToastSales(text);
         const comparison=compareAdditionalRevenue(toast,financial,parsed);
+        group.toastData=toast;
 
         await arType(
           scanLog,
@@ -2787,9 +2982,9 @@
       return names[label]||String(label||"").toUpperCase();
     }
 
-    async function getPageTextItems(pageNumber){
-      if(!currentSourcePdfJs)return[];
-      const page=await currentSourcePdfJs.getPage(pageNumber);
+    async function getPdfPageTextItems(pdf,pageNumber){
+      if(!pdf)return[];
+      const page=await pdf.getPage(pageNumber);
       const content=await page.getTextContent();
 
       return content.items
@@ -2800,6 +2995,10 @@
           y:(item.transform&&item.transform[5])||0,
           width:item.width||0
         }));
+    }
+
+    async function getPageTextItems(pageNumber){
+      return getPdfPageTextItems(currentSourcePdfJs,pageNumber);
     }
 
     function wrapPdfText(font,text,size,maxWidth,maxLines=2){
@@ -2870,14 +3069,13 @@
       }
     }
 
-    async function drawEventARExport(pdfDoc,group,font,bold){
-      if(!group.pageNumbers?.length)return;
+    async function drawEventARExport(pdfDoc,group,font,bold,outputStartIndex){
+      if(!group.pdf?.numPages)return;
 
       const parsed=group.parsed||{};
       const comparison=parsed.arComparison||null;
-      const firstSourceIndex=group.pageNumbers[0];
-      const firstPage=pdfDoc.getPage(firstSourceIndex);
-      const firstItems=await getPageTextItems(firstSourceIndex+1);
+      const firstPage=pdfDoc.getPage(outputStartIndex);
+      const firstItems=await getPdfPageTextItems(group.pdf,1);
 
       const booking=
         firstItems.find(item=>/^BOOKING TYPE\s*:/i.test(item.text)) ||
@@ -3056,16 +3254,26 @@
 
       if(!parsed.arProcessed||!comparison)return;
 
-      const billingRecord=group.records.find(record=>
-        /\bBILLING SUMMARY\b/i.test(record.text) ||
-        /Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges/i.test(record.text)
-      );
+      let billingLocalIndex=null;
+      let billingItems=[];
 
-      if(!billingRecord)return;
+      for(let pageNumber=1;pageNumber<=group.pdf.numPages;pageNumber++){
+        const items=await getPdfPageTextItems(group.pdf,pageNumber);
+        const pageText=items.map(item=>item.text).join(" ");
 
-      const billingSourceIndex=billingRecord.pageNumber-1;
-      const billingPage=pdfDoc.getPage(billingSourceIndex);
-      const billingItems=await getPageTextItems(billingRecord.pageNumber);
+        if(
+          /\bBILLING SUMMARY\b/i.test(pageText) ||
+          /Subtotal\s+Taxes\s+Service Charge\s+Admin Fee\s+Total Charges/i.test(pageText)
+        ){
+          billingLocalIndex=pageNumber-1;
+          billingItems=items;
+          break;
+        }
+      }
+
+      if(billingLocalIndex===null)return;
+
+      const billingPage=pdfDoc.getPage(outputStartIndex+billingLocalIndex);
 
       const subtotal=billingItems.find(item=>/^Subtotal$/i.test(item.text));
       if(!subtotal)return;
@@ -3099,19 +3307,34 @@
     }
 
     async function exportAnnotatedPdf(){
-      if(!currentSourceBytes||!currentGroups.length)return;
+      if(!currentGroups.length)return;
 
       const oldText=exportButton.textContent;
       exportButton.disabled=true;
       exportButton.textContent="Exporting…";
 
       try{
-        const pdfDoc=await PDFDocument.load(currentSourceBytes.slice());
+        const pdfDoc=await PDFDocument.create();
         const font=await pdfDoc.embedFont(StandardFonts.Helvetica);
         const bold=await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
         for(const group of currentGroups){
-          await drawEventARExport(pdfDoc,group,font,bold);
+          if(!group.pdfBytes)continue;
+
+          const eventDoc=await PDFDocument.load(group.pdfBytes.slice());
+          const indices=eventDoc.getPageIndices();
+          const outputStartIndex=pdfDoc.getPageCount();
+          const copied=await pdfDoc.copyPages(eventDoc,indices);
+
+          copied.forEach(page=>pdfDoc.addPage(page));
+
+          await drawEventARExport(
+            pdfDoc,
+            group,
+            font,
+            bold,
+            outputStartIndex
+          );
         }
 
         const bytes=await pdfDoc.save();
