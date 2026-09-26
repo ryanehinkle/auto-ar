@@ -85,6 +85,8 @@
     .event-card-body{padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.72rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
+    .event-name-link,.modal-event-link{color:inherit;text-decoration:none;cursor:pointer;transition:color .14s ease,text-shadow .14s ease}
+    .event-name-link:hover,.modal-event-link:hover{color:#9fc4ec;text-shadow:0 0 12px rgba(111,159,209,.24)}
     .event-corner-actions{position:absolute;top:10px;right:10px;z-index:4;display:flex;align-items:center;justify-content:flex-end;min-width:28px;min-height:28px}
     .event-tags{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:100%;transition:transform .18s ease}
     .event-delete-button{position:absolute;right:0;top:50%;width:26px;height:26px;display:grid;place-items:center;border:1px solid #b9bbc1;border-radius:50%;background:#e7e7ea;color:#5f6168;font-size:.9rem;font-weight:800;line-height:1;cursor:pointer;opacity:0;transform:translate(9px,-50%) scale(.86);pointer-events:none;transition:opacity .16s ease,transform .18s ease,background .14s ease,color .14s ease}
@@ -538,10 +540,24 @@
       const time=fieldValue(lines,"Event Time");
       const guests=fieldValue(lines,"Event Guest Count");
       const eventCard=extractEventCard(lines);
+      const opportunityId=extractOpportunityId(lines,text);
       const tags=detectEventTags(lines,text);
       const financial=extractFinancials(lines,tags);
 
-      return{name,fullTitle:fullTitle||name,date,time,guests,eventCard,beoNumber:group.beoNumber,tags,financial};
+      return{name,fullTitle:fullTitle||name,date,time,guests,eventCard,opportunityId,beoNumber:group.beoNumber,tags,financial};
+    }
+
+    function extractOpportunityId(lines,text){
+      const source=[...(lines||[]),String(text||"")].join("\n");
+      const match=source.match(/Opportunity\s*ID\s*:\s*([A-Za-z0-9]{15,18})\b/i);
+      return match?match[1]:null;
+    }
+
+    function opportunityUrl(opportunityId){
+      if(!opportunityId)return null;
+      return "https://topgolfus.lightning.force.com/lightning/r/Opportunity/"+
+        encodeURIComponent(opportunityId)+
+        "/view";
     }
 
     function extractFullEventTitle(lines){
@@ -1781,7 +1797,22 @@
 
       const name=document.createElement("div");
       name.className="event-name";
-      name.textContent=p.name;
+
+      const opportunityHref=opportunityUrl(p.opportunityId);
+
+      if(opportunityHref){
+        const nameLink=document.createElement("a");
+        nameLink.className="event-name-link";
+        nameLink.href=opportunityHref;
+        nameLink.target="_blank";
+        nameLink.rel="noopener noreferrer";
+        nameLink.textContent=p.name;
+        nameLink.title="Open Opportunity in Salesforce";
+        nameLink.addEventListener("click",(event)=>event.stopPropagation());
+        name.appendChild(nameLink);
+      }else{
+        name.textContent=p.name;
+      }
 
       const cornerActions=document.createElement("div");
       cornerActions.className="event-corner-actions";
@@ -1995,7 +2026,7 @@
 
       additional.append(arHeader,scanLog,arResults);
 
-      preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle));
+      preview.addEventListener("click",()=>openPreview(group.pdf,p.fullTitle,p.opportunityId));
 
       group.ui={
         contracted,
@@ -3807,10 +3838,26 @@
       await page.render({canvasContext:ctx,viewport,transform:output!==1?[output,0,0,output,0,0]:null}).promise;
     }
 
-    async function openPreview(pdf,name){
+    async function openPreview(pdf,name,opportunityId=null){
       activePreviewPdf=pdf;
       activePreviewPage=1;
-      modalEventName.textContent=name||"Event BEO";
+      modalEventName.replaceChildren();
+
+      const opportunityHref=opportunityUrl(opportunityId);
+
+      if(opportunityHref){
+        const link=document.createElement("a");
+        link.className="modal-event-link";
+        link.href=opportunityHref;
+        link.target="_blank";
+        link.rel="noopener noreferrer";
+        link.textContent=name||"Event BEO";
+        link.title="Open Opportunity in Salesforce";
+        modalEventName.appendChild(link);
+      }else{
+        modalEventName.textContent=name||"Event BEO";
+      }
+
       pdfModal.classList.add("open");
       pdfModal.setAttribute("aria-hidden","false");
       document.body.style.overflow="hidden";
