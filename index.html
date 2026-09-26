@@ -3265,19 +3265,35 @@
       );
     }
 
+    function getEventCardRange(){
+      const cards=currentGroups
+        .map(group=>Number(String(group?.parsed?.eventCard||"").trim()))
+        .filter(Number.isFinite);
+
+      if(!cards.length)return"";
+
+      const low=Math.min(...cards);
+      const high=Math.max(...cards);
+      return low===high?String(low):low+"-"+high;
+    }
+
     function getPortfolioSalesDate(){
       const raw=getPrimaryEventDateRaw();
       if(!raw)return"—";
 
       const date=parseEventDate(raw);
-      if(!date)return raw;
+      const range=getEventCardRange();
 
-      return new Intl.DateTimeFormat("en-US",{
+      if(!date)return raw+(range?" ("+range+")":"");
+
+      const formatted=new Intl.DateTimeFormat("en-US",{
         weekday:"short",
         month:"short",
         day:"numeric",
         year:"numeric"
       }).format(date);
+
+      return formatted+(range?" ("+range+")":"");
     }
 
     function getExportPdfName(){
