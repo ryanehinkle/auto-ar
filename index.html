@@ -3039,6 +3039,26 @@
         const parsed=group?.parsed;
         if(!parsed)return sum;
 
+        const toast=group.toastData||null;
+        const toastNetSales=toast?.__totalNetSales;
+
+        // Once Toast exists, it is the authoritative source for final sales.
+        // Total Sales intentionally excludes Admin Fee and Service Charge,
+        // matching the contracted-subtotal + AR definition without allowing
+        // penny drift from independently reconstructed category math.
+        if(
+          toastNetSales!==null &&
+          toastNetSales!==undefined &&
+          Number.isFinite(Number(toastNetSales))
+        ){
+          return(
+            sum+
+            moneyCents(toastNetSales)-
+            moneyCents(toast["Admin Fee"]||0)-
+            moneyCents(toast["Service Charge"]||0)
+          );
+        }
+
         const comparison=
           parsed.arProcessed&&parsed.arComparison
             ? parsed.arComparison
