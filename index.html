@@ -1979,9 +1979,12 @@
         renderAdditionalRevenue(arResults,p.arComparison);
         updateSubtotalCheck(subtotalCheck,p.arComparison);
 
+        pasteZone.style.display="none";
+
         if(p.tags.includes("Play It Forward")){
-          pasteZone.style.display="none";
           replaceButton.style.display="none";
+        }else{
+          replaceButton.classList.add("visible");
         }
       }
 
