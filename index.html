@@ -1454,17 +1454,6 @@
       return records;
     }
 
-    async function makeEvenPdfBytes(bytes){
-      const doc=await PDFDocument.load(bytes.slice());
-
-      if(doc.getPageCount()%2===1){
-        const last=doc.getPage(doc.getPageCount()-1);
-        doc.addPage([last.getWidth(),last.getHeight()]);
-      }
-
-      return new Uint8Array(await doc.save());
-    }
-
     function makeZeroPlayItForwardComparison(){
       return{
         items:[{
@@ -1510,18 +1499,14 @@
         }).promise;
 
         const records=await readPdfRecords(sourcePdf);
-        const evenBytes=await makeEvenPdfBytes(rawBytes);
-        const evenPdf=await pdfjsLib.getDocument({
-          data:evenBytes.slice()
-        }).promise;
 
         const previousCard=group.cardElement;
         const previousToast=group.toastData||null;
 
         group.records=records;
         group.pageNumbers=records.map((_,index)=>index);
-        group.pdfBytes=evenBytes;
-        group.pdf=evenPdf;
+        group.pdfBytes=rawBytes;
+        group.pdf=sourcePdf;
         group.replacedPdf=true;
 
         const beoMatch=records
@@ -1689,11 +1674,6 @@
           return;
         }
 
-        const evenBytes=await makeEvenPdfBytes(rawBytes);
-        const evenPdf=await pdfjsLib.getDocument({
-          data:evenBytes.slice()
-        }).promise;
-
         const joinedText=records.map(record=>record.text).join("\n");
         const beoMatch=joinedText.match(/\bBEO\s*#\s*:?\s*(\d+)/i);
 
@@ -1701,8 +1681,8 @@
           beoNumber:beoMatch?beoMatch[1]:"added-"+Date.now(),
           records,
           pageNumbers:records.map((_,index)=>index),
-          pdfBytes:evenBytes,
-          pdf:evenPdf,
+          pdfBytes:rawBytes,
+          pdf:rawPdf,
           addedPdf:true
         };
 
@@ -3621,6 +3601,14 @@
           const copied=await pdfDoc.copyPages(eventDoc,indices);
 
           copied.forEach(page=>pdfDoc.addPage(page));
+
+          // Printable mode: currentGroups are already split by BEO/event.
+          // If this individual event is odd, add exactly one blank page
+          // before the next event begins so duplex printing never crosses BEOs.
+          if(copied.length%2===1&&copied.length){
+            const lastPage=copied[copied.length-1];
+            pdfDoc.addPage([lastPage.getWidth(),lastPage.getHeight()]);
+          }
 
           await drawEventARExport(
             pdfDoc,
