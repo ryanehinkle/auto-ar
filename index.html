@@ -2795,15 +2795,19 @@
       // AR treats all beverage-package revenue and day-of Beer/Liquor/Wine
       // as one L/B/W bucket. "Beverages" remains separate only in Contracted.
       if(recognized.has("Beverages")||recognized.has("LBW")){
-        const actual=
-          Number(toast.Beverages||0)+
-          Number(toast.LBW||0);
-        const base=
-          Number(contracted.Beverages||0)+
-          Number(contracted.LBW||0);
-        const additional=actual-base;
+        const actual=centsMoney(
+          moneyCents(toast.Beverages||0)+
+          moneyCents(toast.LBW||0)
+        );
+        const base=centsMoney(
+          moneyCents(contracted.Beverages||0)+
+          moneyCents(contracted.LBW||0)
+        );
+        const additional=centsMoney(
+          moneyCents(actual)-moneyCents(base)
+        );
 
-        if(Math.abs(additional)>0.004){
+        if(moneyCents(additional)!==0){
           items.push({
             label:"LBW",
             actual,
@@ -2822,11 +2826,13 @@
       for(const label of expectedLabels){
         if(!recognized.has(label))continue;
 
-        const actual=Number(toast[label]||0);
-        const base=Number(contracted[label]||0);
-        const additional=actual-base;
+        const actual=centsMoney(moneyCents(toast[label]||0));
+        const base=centsMoney(moneyCents(contracted[label]||0));
+        const additional=centsMoney(
+          moneyCents(actual)-moneyCents(base)
+        );
 
-        if(Math.abs(additional)>0.004){
+        if(moneyCents(additional)!==0){
           items.push({label,actual,contracted:base,additional});
         }
       }
@@ -2834,9 +2840,9 @@
       const isFlex=Array.isArray(parsed&&parsed.tags)&&parsed.tags.includes("Flex");
 
       if(recognized.has("Fees")){
-        const feeAmount=Number(toast.Fees||0);
+        const feeAmount=centsMoney(moneyCents(toast.Fees||0));
 
-        if(Math.abs(feeAmount)>0.004){
+        if(moneyCents(feeAmount)!==0){
           items.push({
             label:isFlex?"Unused F&B":"Other",
             actual:feeAmount,
@@ -2848,9 +2854,19 @@
 
       items.sort((a,b)=>b.additional-a.additional);
 
-      const grossTotal=items.reduce((sum,item)=>sum+item.additional,0);
-      const fbMinimum=isFlex?Number(financial.categories["F&B Minimum"]||0):0;
-      const total=isFlex?grossTotal-fbMinimum:grossTotal;
+      const grossTotalCents=items.reduce(
+        (sum,item)=>sum+moneyCents(item.additional),
+        0
+      );
+      const fbMinimumCents=isFlex
+        ? moneyCents(financial.categories["F&B Minimum"]||0)
+        : 0;
+      const totalCents=isFlex
+        ? grossTotalCents-fbMinimumCents
+        : grossTotalCents;
+      const grossTotal=centsMoney(grossTotalCents);
+      const fbMinimum=centsMoney(fbMinimumCents);
+      const total=centsMoney(totalCents);
 
       const toastTotalNetSales=
         toast.__totalNetSales!==null &&
@@ -2864,22 +2880,22 @@
 
       // Base the check on the category totals actually shown in Contracted,
       // rather than a separately parsed hidden amount.
-      const contractedCategorySubtotal=[
+      const contractedCategorySubtotalCents=[
         "Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor",
         "Equipment Rental","Space Rental","Digital Media","Coach","Other Fees"
       ].reduce(
-        (sum,label)=>sum+Number(financial.categories[label]||0),
+        (sum,label)=>sum+moneyCents(financial.categories[label]||0),
         0
       );
 
       const contractedSubtotal=
-        Number.isFinite(contractedCategorySubtotal)
-          ? contractedCategorySubtotal
+        Number.isFinite(contractedCategorySubtotalCents)
+          ? centsMoney(contractedCategorySubtotalCents)
           : (
               financial.subtotal!==null &&
               financial.subtotal!==undefined &&
               Number.isFinite(Number(financial.subtotal))
-                ? Number(financial.subtotal)
+                ? centsMoney(moneyCents(financial.subtotal))
                 : null
             );
 
@@ -2890,20 +2906,29 @@
         contractedSubtotal!==null
       ){
         // Signed AR is intentional: Toast can be below the contract.
-        const expectedAR=
-          toastTotalNetSales-toastAdminFee-toastServiceCharge-contractedSubtotal;
-        const arDifference=total-expectedAR;
+        const toastTotalNetSalesCents=moneyCents(toastTotalNetSales);
+        const toastAdminFeeCents=moneyCents(toastAdminFee);
+        const toastServiceChargeCents=moneyCents(toastServiceCharge);
+        const contractedSubtotalCents=moneyCents(contractedSubtotal);
+        const expectedARCents=
+          toastTotalNetSalesCents-
+          toastAdminFeeCents-
+          toastServiceChargeCents-
+          contractedSubtotalCents;
+        const arDifferenceCents=totalCents-expectedARCents;
+        const expectedAR=centsMoney(expectedARCents);
+        const arDifference=centsMoney(arDifferenceCents);
 
         subtotalCheck={
-          pass:Math.abs(arDifference)<=0.03,
-          toastTotalNetSales,
-          toastAdminFee,
-          toastServiceCharge,
+          pass:Math.abs(arDifferenceCents)<=3,
+          toastTotalNetSales:centsMoney(toastTotalNetSalesCents),
+          toastAdminFee:centsMoney(toastAdminFeeCents),
+          toastServiceCharge:centsMoney(toastServiceChargeCents),
           totalAR:total,
           expectedAR,
-          contractedSubtotal,
+          contractedSubtotal:centsMoney(contractedSubtotalCents),
           arDifference,
-          discrepancy:Math.abs(arDifference)
+          discrepancy:centsMoney(Math.abs(arDifferenceCents))
         };
       }
 
@@ -3010,18 +3035,31 @@
     }
 
     function getPortfolioSalesTotal(){
-      return currentGroups.reduce((sum,group)=>{
+      const totalCents=currentGroups.reduce((sum,group)=>{
         const parsed=group?.parsed;
         if(!parsed)return sum;
 
-        const subtotal=Number(parsed.financial?.subtotal||0);
-        const ar=
+        const comparison=
           parsed.arProcessed&&parsed.arComparison
-            ? Number(parsed.arComparison.total||0)
-            : 0;
+            ? parsed.arComparison
+            : null;
 
-        return sum+subtotal+ar;
+        const checkedSubtotal=
+          comparison?.subtotalCheck?.contractedSubtotal;
+
+        const subtotal=
+          checkedSubtotal!==null &&
+          checkedSubtotal!==undefined &&
+          Number.isFinite(Number(checkedSubtotal))
+            ? Number(checkedSubtotal)
+            : Number(parsed.financial?.subtotal||0);
+
+        const ar=comparison?Number(comparison.total||0):0;
+
+        return sum+moneyCents(subtotal)+moneyCents(ar);
       },0);
+
+      return centsMoney(totalCents);
     }
 
     function getPrimaryEventDateRaw(){
@@ -3817,6 +3855,13 @@
     function parseMoney(value){
       const n=Number(String(value||"").replace(/USD|\$|,/gi,"").trim());
       return Number.isFinite(n)?n:null;
+    }
+    function moneyCents(value){
+      const n=Number(value);
+      return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100):0;
+    }
+    function centsMoney(cents){
+      return moneyCents(Number(cents)/100)/100;
     }
     function formatSignedMoney(value){
       if(value===null||!Number.isFinite(value))return"—";
