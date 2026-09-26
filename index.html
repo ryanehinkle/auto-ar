@@ -1571,6 +1571,11 @@
 
         if(group.toastData&&group.ui){
           group.ui.contracted.open=false;
+        }else if(
+          currentToastByEvent.size>0 &&
+          !group.parsed.tags.includes("Play It Forward")
+        ){
+          showNoToastData(group);
         }
 
         updateEventsProgress();
