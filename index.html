@@ -1932,7 +1932,13 @@
       if(x==="event - equipment rental"||x==="event equipment rental"||x==="equipment rental")return"Equipment Rental";
       if(x==="event - labor"||x==="event labor"||x==="labor"||x==="labour")return"Labor";
       if(x==="marketing partnerships"||x==="marketing partnership"||x==="digital media")return"Digital Media";
-      if(x==="events fees"||x==="event fees"||x==="fees"||x==="fee")return"Fees";
+      if(
+        /^events?\s*-\s*fees?$/.test(x) ||
+        x==="events fees" ||
+        x==="event fees" ||
+        x==="fees" ||
+        x==="fee"
+      )return"Fees";
       if(x==="retail")return"Retail";
       if(x==="coach"||x==="instruction"||x==="instructional")return"Coach";
       if(x==="club rental")return"Other Fees";
