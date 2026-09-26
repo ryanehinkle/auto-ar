@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Automatic AR</title>
+  <title>ARmatic</title>
   <style>
     :root{color-scheme:dark;--bg:#080809;--panel:#18181b;--panel2:#1d1d21;--border:#34343b;--soft:#29292f;--text:#f5f5f7;--muted:#9696a0;--blue:#5185bd;--green:#65b47e}
     *{box-sizing:border-box;margin:0;padding:0}
@@ -13,6 +13,8 @@
     .landing-card{width:min(92vw,520px);padding:52px 42px 42px;text-align:center;background:var(--panel);border:1px solid #3a3a40;border-radius:14px;box-shadow:0 28px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.03)}
     .brand-mark{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 16px;border:1px solid #486f9a;border-radius:14px;background:linear-gradient(145deg,#21364d,#142333);color:#9fc4ec;font:800 1.45rem Georgia,"Times New Roman",serif;box-shadow:0 10px 28px rgba(34,80,126,.2)}
     h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(2.6rem,8vw,4rem);line-height:.98;letter-spacing:-.045em;color:#fff;text-shadow:2px 2px 0 #2c2c31}
+    .brand-title .brand-ar{color:#6f9fd1}
+    .brand-title .brand-matic{color:#fff}
     .landing-subtitle{max-width:390px;margin:14px auto 0;color:#a4a4ae;font-size:.97rem;line-height:1.55}
     .upload-zone{margin-top:30px;padding:18px;border:1px dashed #3d4e62;border-radius:12px;background:#13161a;transition:.16s ease}
     .upload-zone.dragging{border-color:#70a7df;background:#161d25;transform:translateY(-1px)}
@@ -74,7 +76,7 @@
     .event-preview{position:relative;height:190px;display:grid;place-items:center;overflow:hidden;background:#efefef;border-bottom:1px solid #303036;cursor:pointer}
     .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
     .event-card-body{padding:15px}
-    .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.65rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+    .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.72rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
     .event-tags{position:absolute;top:10px;right:10px;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:62%}
 
@@ -188,11 +190,10 @@
   <main id="landing" class="landing">
     <section class="landing-card">
       <div class="brand-mark">AR</div>
-      <h1>Automatic AR</h1>
-      <p class="landing-subtitle">Upload a Topgolf BEO and Automatic AR will read the document, identify the event, and surface everything it can understand.</p>
+      <h1 class="brand-title"><span class="brand-ar">AR</span><span class="brand-matic">matic</span></h1>
       <div id="uploadZone" class="upload-zone">
         <button id="uploadButton" class="upload-button" type="button">Upload BEO</button>
-        <p class="upload-hint">PDF only · or drag and drop a BEO here</p>
+        <p class="upload-hint">PDF Only · Or drag and drop</p>
       </div>
       <div id="landingError" class="error-card"></div>
     </section>
@@ -202,8 +203,7 @@
   <main id="app" class="app">
     <header class="app-header">
       <div id="appBrand" class="app-brand" role="button" tabindex="0" title="Return home">
-        <h1>Automatic AR</h1>
-        <p>Multi-event BEO financial readout</p>
+        <h1 class="brand-title"><span class="brand-ar">AR</span><span class="brand-matic">matic</span></h1>
       </div>
       <button id="newFileButton" class="new-file-button" type="button">Upload another PDF</button>
     </header>
@@ -312,7 +312,7 @@
 
     async function processFile(file){
       clearError();
-      if(file.type!=="application/pdf"&&!file.name.toLowerCase().endsWith(".pdf")){showError("Automatic AR currently reads PDF BEOs.");return}
+      if(file.type!=="application/pdf"&&!file.name.toLowerCase().endsWith(".pdf")){showError("ARmatic currently reads PDF BEOs.");return}
 
       landing.style.display="none";
       app.classList.add("active");
@@ -2497,30 +2497,40 @@
       },0);
     }
 
-    function getPortfolioSalesDate(){
+    function getPrimaryEventDateRaw(){
       const dates=currentGroups
         .map(group=>group?.parsed?.date)
         .filter(Boolean);
 
-      if(!dates.length)return"—";
+      if(!dates.length)return null;
 
       const counts=new Map();
       for(const date of dates){
         counts.set(date,(counts.get(date)||0)+1);
       }
 
-      const raw=[...counts.entries()]
-        .sort((a,b)=>b[1]-a[1])[0]?.[0];
+      return [...counts.entries()]
+        .sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
+    }
 
+    function parseEventDate(raw){
       const match=String(raw||"").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if(!match)return raw||"—";
+      if(!match)return null;
 
-      const date=new Date(
+      return new Date(
         Number(match[3]),
         Number(match[1])-1,
         Number(match[2]),
         12,0,0
       );
+    }
+
+    function getPortfolioSalesDate(){
+      const raw=getPrimaryEventDateRaw();
+      if(!raw)return"—";
+
+      const date=parseEventDate(raw);
+      if(!date)return raw;
 
       return new Intl.DateTimeFormat("en-US",{
         weekday:"short",
@@ -2528,6 +2538,20 @@
         day:"numeric",
         year:"numeric"
       }).format(date);
+    }
+
+    function getExportPdfName(){
+      const raw=getPrimaryEventDateRaw();
+      const date=parseEventDate(raw);
+
+      if(!date)return"AR.pdf";
+
+      const weekday=new Intl.DateTimeFormat("en-US",{weekday:"short"}).format(date);
+      const mm=String(date.getMonth()+1).padStart(2,"0");
+      const dd=String(date.getDate()).padStart(2,"0");
+      const yy=String(date.getFullYear()).slice(-2);
+
+      return weekday+" "+mm+"."+dd+"."+yy+" AR.pdf";
     }
 
     function animatePortfolioSales(target){
@@ -2930,9 +2954,8 @@
         const blob=new Blob([bytes],{type:"application/pdf"});
         const url=URL.createObjectURL(blob);
         const a=document.createElement("a");
-        const base=currentUploadName.replace(/\.pdf$/i,"");
         a.href=url;
-        a.download=base+" - AR.pdf";
+        a.download=getExportPdfName();
         document.body.appendChild(a);
         a.click();
         a.remove();
