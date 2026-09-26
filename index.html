@@ -336,6 +336,7 @@
     let currentUploadName="Automatic-AR.pdf";
     let portfolioSalesDisplay=0;
     let portfolioSalesAnimation=null;
+    let enteredEvents=new Set();
 
     uploadButton.addEventListener("click",()=>pdfInput.click());
     newFileButton.addEventListener("click",()=>pdfInput.click());
@@ -412,6 +413,8 @@
       currentSourcePdfJs=null;
       currentGroups=[];
       currentToastByEvent=new Map();
+      enteredEvents=new Set();
+      updateEnteredProgress();
       currentUploadName=file.name;
       exportButton.disabled=true;
       toastUploadButton.disabled=true;
@@ -645,26 +648,23 @@
         "&endDate="+reportDate+
         "&locations=FvXo0LDEQMCc%2BUtBtxDWLQ%3D%3D";
     }
-    function eventEnteredStorageKey(eventCard,eventDate){
+    function eventEnteredKey(eventCard,eventDate){
       const card=String(eventCard||"").trim();
       const date=String(eventDate||"").trim();
       if(!card)return null;
-      return "armatic-entered:"+date+":"+card;
+      return date+":"+card;
     }
 
     function getEventEntered(eventCard,eventDate){
-      const key=eventEnteredStorageKey(eventCard,eventDate);
-      if(!key)return false;
-      try{return localStorage.getItem(key)==="1"}catch(_){return false}
+      const key=eventEnteredKey(eventCard,eventDate);
+      return key?enteredEvents.has(key):false;
     }
 
     function setEventEntered(eventCard,eventDate,entered){
-      const key=eventEnteredStorageKey(eventCard,eventDate);
+      const key=eventEnteredKey(eventCard,eventDate);
       if(!key)return;
-      try{
-        if(entered)localStorage.setItem(key,"1");
-        else localStorage.removeItem(key);
-      }catch(_){}
+      if(entered)enteredEvents.add(key);
+      else enteredEvents.delete(key);
     }
 
     function updateEnteredProgress(){
