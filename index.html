@@ -2289,9 +2289,7 @@
           file.name+" · "+matched+" matched event"+(matched===1?"":"s");
 
         await terminalMessage(
-          "Toast CSV matched "+matched+" of "+currentGroups.length+
-          " BEO events · "+eventRows+" event sales rows used · "+
-          ignoredRows+" non-event server rows ignored.",
+          "Toast CSV matched "+matched+" of "+currentGroups.length+" BEO events.",
           matched?"success":"muted"
         );
 
