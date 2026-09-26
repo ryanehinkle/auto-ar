@@ -61,7 +61,7 @@
     .events-progress-bar{width:0;height:100%;border-radius:999px;background:#79c990;transition:width .24s ease}
     .events-progress-text{min-width:32px;color:#9aa0a7;font-size:.7rem;font-weight:850;font-variant-numeric:tabular-nums}
     .portfolio-sales{position:relative;justify-self:center;min-width:240px;text-align:center;line-height:1;color:inherit;text-decoration:none;cursor:pointer;outline:none}
-    .portfolio-sales::before{content:"View Toast report";position:absolute;left:50%;bottom:calc(100% + 7px);padding:5px 8px;border:1px solid #34343b;border-radius:7px;background:#17171b;color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.01em;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-50%,7px);transition:opacity .16s ease,transform .18s ease;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+    .portfolio-sales::before{content:attr(data-hover);position:absolute;left:50%;bottom:calc(100% + 7px);padding:5px 8px;border:1px solid #34343b;border-radius:7px;background:#17171b;color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.01em;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-50%,7px);transition:opacity .16s ease,transform .18s ease;box-shadow:0 6px 18px rgba(0,0,0,.28)}
     .portfolio-sales:hover::before,.portfolio-sales:focus-visible::before{opacity:1;transform:translate(-50%,0)}
     .portfolio-sales-value{color:#f5f5f7;font-size:1.85rem;font-weight:950;letter-spacing:-.035em;font-variant-numeric:tabular-nums;text-shadow:0 5px 22px rgba(0,0,0,.35);transition:color .14s ease,text-shadow .14s ease}
     .portfolio-sales:hover .portfolio-sales-value,.portfolio-sales:focus-visible .portfolio-sales-value{color:#9fc4ec;text-shadow:0 0 12px rgba(111,159,209,.24),0 5px 22px rgba(0,0,0,.35)}
@@ -255,7 +255,7 @@
           <span id="eventsProgressText" class="events-progress-text">0/0</span>
         </div>
       </div>
-      <a id="portfolioSalesLink" class="portfolio-sales" href="#" target="_blank" rel="noopener noreferrer" aria-live="polite" aria-label="View Toast sales report">
+      <a id="portfolioSalesLink" class="portfolio-sales" href="#" target="_blank" rel="noopener noreferrer" data-hover="View Toast report" aria-live="polite" aria-label="Click to copy total sales. Double-click to open Toast report.">
         <div id="portfolioSalesValue" class="portfolio-sales-value">$0.00</div>
         <div id="portfolioSalesDate" class="portfolio-sales-date">—</div>
       </a>
@@ -314,6 +314,37 @@
     uploadButton.addEventListener("click",()=>pdfInput.click());
     newFileButton.addEventListener("click",()=>pdfInput.click());
     exportButton.addEventListener("click",exportAnnotatedPdf);
+    portfolioSalesLink.addEventListener("click",async(event)=>{
+      event.preventDefault();
+
+      const amount=portfolioSalesValue.textContent.trim();
+      if(!amount)return;
+
+      try{
+        await navigator.clipboard.writeText(amount);
+      }catch(_){
+        const textarea=document.createElement("textarea");
+        textarea.value=amount;
+        textarea.setAttribute("readonly","");
+        textarea.style.position="fixed";
+        textarea.style.opacity="0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      portfolioSalesLink.dataset.hover="Copied "+amount;
+      clearTimeout(portfolioSalesLink._copyResetTimer);
+      portfolioSalesLink._copyResetTimer=setTimeout(()=>{
+        portfolioSalesLink.dataset.hover="View Toast report";
+      },900);
+    });
+    portfolioSalesLink.addEventListener("dblclick",(event)=>{
+      event.preventDefault();
+      const toastReportUrl=getToastReportUrl();
+      if(toastReportUrl)window.open(toastReportUrl,"_blank","noopener,noreferrer");
+    });
     toastUploadButton.addEventListener("click",()=>toastCsvInput.click());
     toastCsvInput.addEventListener("change",()=>{
       const file=toastCsvInput.files&&toastCsvInput.files[0];
@@ -3288,7 +3319,7 @@
       const toastReportUrl=getToastReportUrl();
       if(toastReportUrl){
         portfolioSalesLink.href=toastReportUrl;
-        portfolioSalesLink.setAttribute("aria-label","View Toast report for "+getPortfolioSalesDate());
+        portfolioSalesLink.setAttribute("aria-label","Click to copy total sales. Double-click to open Toast report for "+getPortfolioSalesDate()+".");
       }else{
         portfolioSalesLink.href="#";
         portfolioSalesLink.setAttribute("aria-label","Toast report unavailable");
