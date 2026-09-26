@@ -87,6 +87,8 @@
     .event-preview canvas{display:block;max-width:100%;max-height:100%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.2)}
     .event-card-body{padding:15px}
     .event-kicker{display:flex;justify-content:space-between;gap:10px;color:#6f9fd1;font-size:.72rem;font-weight:850;letter-spacing:.07em;text-transform:uppercase}
+    .event-toast-link{color:inherit;text-decoration:none;cursor:pointer;transition:color .14s ease,text-shadow .14s ease}
+    .event-toast-link:hover,.event-toast-link:focus-visible{color:#3f6f9f;text-shadow:0 0 10px rgba(63,111,159,.22)}
     .event-name{margin-top:7px;color:#fff;font-size:1.05rem;font-weight:850;line-height:1.2;overflow-wrap:anywhere}
     .event-name-link,.modal-event-link{color:inherit;text-decoration:none;cursor:pointer;transition:color .14s ease,text-shadow .14s ease}
     .event-name-link:hover,.modal-event-link:hover{color:#9fc4ec;text-shadow:0 0 12px rgba(111,159,209,.24)}
@@ -599,6 +601,25 @@
       return "https://topgolfus.lightning.force.com/lightning/r/Opportunity/"+
         encodeURIComponent(opportunityId)+
         "/view";
+    }
+    const toastEventIds={"1001":"Ff7b72CcQsaf1VXwDCFMEQ==","1002":"/EU5xdtKTZyW2y6J6iajoQ==","1003":"iuEvE3z8Qxiv/I/RyJnjnA==","1004":"uP+7yeFQTyqL364sIGkiTw==","1005":"GUT2laIVSpW+mMwSS42dgQ==","1006":"jIemIT35QUCRXgyHAZDDJg==","1007":"riA2OcMKSAq1Is5L09Y1pw==","1008":"bSxsKKmnRk6mno+BW79lBw==","1009":"NNcd2UA2TbG9QyID9IgQAw==","1010":"hUfexHX0TQ6Sbw3SoxJ6ag==","1011":"RsE5b6LJQwuMGnGJIWWwBw==","1012":"y0VfYLhQTHCkE4la1Eplog==","1013":"R6LWKMxbS0KeGSvqFVqvDw==","1014":"ri5SRE2wROKX+v6KxFUcmg==","1015":"kxjGpLYkSqCA9635CTW17A==","1016":"a8HdXLHmS6uQ031yL0NTKQ==","1017":"lMY7VHnHQSiFWH4mZAg4VQ==","1018":"1X6DjqOZSIiWcCb3BKZoJQ==","1019":"ftFK+BlIQn6DWL+48uoapw==","1020":"IR01pIBOR8SZ6ed7W2TgTw==","1021":"mPlxioJISYmgUgD8ePKqKw==","1022":"DK5NzCrxRfW3LNiEEob2vw==","1023":"8ns7EJ/1R3eLT9h6SaLSYQ==","1024":"4PBCZh4PT2iZj6eXS7NSyA==","1025":"tO5LszMvT0m/nPBUp46sIQ==","1026":"Z0Be62paRpWel6loaE6nRg==","1027":"3mPccR2BQMijOwtS750veQ==","1028":"XoRt3OxISpeJC2Gw5CDyaA==","1029":"MQKt43wwRNuNXYTgmSV5+Q==","1030":"NoNMAWaiRFSAZs1DynEV7A==","1031":"GvmssJ2eQa6CyVLFnGJ9nQ==","1032":"hV3HkoxeQ/K/GrbaP+aLvA==","1033":"9qnWs3/4Q6uPrYcrj+WRTA==","1034":"lzpRj2ELRIajHSPQR8MERQ==","1035":"zjJi6LVwQAKpXxC5/8f7+g==","1036":"Z6kXbsfETj6EFo+AvWPLuQ==","1037":"c2Z9P5mdThOtWojPPwXiMw==","1038":"nStUxSp2Rj2IplXUV+FNGA==","1039":"kWC5DV+0S7CCr/PzYQY6Yg==","1040":"bx+dinhZSFy5HypMvEG3zw==","1041":"PWmkQegIR/S+XzmN/Iu4Bw==","1042":"c7ryxqF7QO+pGwhp2OushA==","1043":"UggjiFbJSyi3C5zSHfGapQ==","1044":"2wk9Bl3yTE2fnjNgpVrYcw==","1045":"H+GIth+RR0KXOne9usOihQ==","1046":"NaxzvyxZQOqZHs0fXjw0Nw==","1047":"s3781nCvTcK8cT7S4dSPUg==","1048":"xWI1Dld8SYOr0IEYRbJHnw==","1049":"t7IJy3M3S2CnCtZuVCeyYw==","1050":"wqTTH17VRjmPqtxcPR5FdA==","1051":"f/1OOg2CS96ZPtt0dJalsQ==","1052":"Juv7ldHkRPWSt+8P0mRUng==","1053":"Ru0EPdRgReCOLJHmrO+1Ug==","1054":"i5V4+gvgTBWGPN8/lZZHUw==","1055":"j346EMMGT2SrItLk3XX9nw==","1056":"WesAvS08TKmD8/XYHrOd4Q==","1057":"3nZyNJsNTse8jQulT5FAVg==","1058":"SS4EUWiUSCmxisvnE4l/VQ==","1059":"8Tlk3A99RzuUAjtW/7AkkA==","1060":"fgpJZLTHQzWVfge3Sv7tdQ==","1061":"Hq4FPIloRCaS026UyVsLLA==","1062":"12BuGtzhTPS+MPjxwZFSeQ==","1063":"fSdTM6zySY+lJr01vtDbWQ==","1064":"i5fi/mPcSJqZph3l+ngGSA==","1065":"Eh5aWvjYTlGU4vNKHfyTQA==","1066":"N1y5bbdFRsqF3HqmszTHoQ==","1067":"dlAyGG1oQJmfJ4LwOZif1Q==","1068":"f0hQSB9+RgWBEiuCBLMm/w==","1069":"qAzfr3e6SI6QjifLWQnMig==","1070":"npk8Lq7IRpivdPBjWyWXaQ==","1071":"WrtEC0OyRa+1YEeKqosz/Q==","1072":"z+gL1KcTQn6k/idu8mofjw==","1073":"DLJzvSzOSYKOtmkUU1HHtg==","1074":"VrGJaY+eQQKBDK0HcEXBfw==","1075":"+qS4ZZecS/mrpR4TDQWdHg==","1076":"/pmXWtJURYChoURPl1RVsw==","1077":"iIeT2+GlTlaz7O2jwnVYlg==","1078":"B6OfER4sS8SYjO5GfslnnQ==","1079":"kLd+3jtvTgyxPMOCDHvieQ==","1080":"5gff+NYPTJCqBS3y+M1MBw==","1081":"ta2ffxjhRuyCbNjDSuX/rQ==","1082":"qWFoW5XhQbW8TFxvtEvBGg==","1083":"sY7Ic4imT+afrxoaNMOvpA==","1084":"xIzPFV0dRf67oJyPhROutQ==","1085":"LhIzSzMGRQG2bWIwj6EIMw==","1086":"hEEZljSBQO+yQtQlX4hjZw==","1087":"8asiJ7LyR9iNkdg0F7SoYw==","1088":"9hU7LON7TG2N7GFQgt5piQ==","1089":"CIogHNq6QgOZeDqjT63SvA==","1090":"lcY3ZQkNQ96GnD5QA8E34g==","1091":"A4Kz3jnETWysk7mIzNkYrA==","1092":"4Up+qK4iQHO65S8XNRU/mg==","1093":"5eLcT9TERl6+v+fa9Rtllg==","1094":"65MJzy2jQj25qg/5leNCUQ==","1095":"RVCBGAyISceO754RNqgHLQ==","1096":"/ZGd8jN0RxyCjfW2x1LF8Q==","1097":"V+ZlGzoUTi2U2J2dhHs2+g==","1098":"MbgfaZ+dTaOmWzI8isj1XQ==","1099":"lvxMHltkRsO4ep2VQwSE/Q==","1100":"Stn+LUKGT9OElRr/vQSsyA==","1101":"BR9Xdz9oSpu7S75q5w4/Cg==","1102":"uCqGXi9YSyaMvr+iZmhs3w==","1103":"pMtUcjuOS5KzgfgyMxt3kw==","1104":"PwyCxB5ER3GzME1WX5Im3A==","1105":"mhIeSQgKTwKyitS8NB2fVg==","1106":"fln4Tnm6SYaeQ9meVxstUQ==","1107":"RUUuZmHIQSyOE/2YNYJJqg==","1108":"A3EoamEcSiixaSCnubXhMw==","1109":"SQR9aS01RDyN2EFSNx41Sg==","1110":"oEXAbAmqSCKJ3cJDHeCOJg==","1112":"589CkWEoTjKbrw0HOwmxAA==","1113":"MTlTIhijTDK3ISpcoV9/OA==","1114":"a/jNHHdhTDygDt5b/gvlIw==","1115":"2AVGTMnORZ2KXvrGrxhXBw==","1116":"8y77X1kySE+DtHQm2J2PAw==","1117":"nOn3FV++RVq09k5DJAfr9Q==","1118":"XJBuHuLwT0GFbTq9n0acPQ==","1119":"JLNa1o/hSy+tMqveLF3/OA==","1120":"Le78EKNRQlmcEJiC/m2Y0w==","1121":"VvMiVP3tTpe+aohj99R8Xg==","1122":"cyRc0dX3TxCirgP16j3ZAA==","1123":"lpOWBj7oT5WJqAs7MCYkww==","1124":"LXRMKyF5Qgy4v/YLrYCm6g==","1125":"uYiZjIouQLyK01bF6vdN8w==","1126":"cM4Dj30bSNG0+POIxsW1wg==","1127":"VW8cI61qRtizUsXAQ8syuQ==","1128":"lqCZ3T9SSvmJ5fj3xGcmBw==","1129":"yaxsv49aSh2OpGOh7TTzGQ==","1130":"nfCsrdxtQJGIuhJdgkKp7A==","1131":"mUmB0rZ2ReaZl2z3Wxl71A==","1132":"S3d5X7k+QUqQSr8K+MGs3Q==","1133":"VK4CLt73RUelMzlXW6EYkQ==","1134":"wAMmMZbzTIWjO+YP4Cu8Pg==","1135":"VINRZt1pRrWAqr6WkqLWPg==","1136":"u94kwWppSZO6yPAA2waDaA==","1137":"ZexhTzSPQeWSgBWQVMHVTw==","1138":"+QT3eeXPQdyVbn2fPO5wpg==","1139":"eIEsaCj/Q6GCNq4B4tVx7Q==","1140":"AHHZv5KESw6PXHZ9oFeXpQ==","1141":"OVEmvW5QTeWMHwnuRLju3Q==","1142":"hK3gBP6rTnyFqElxuq/iAg==","1143":"BQLv2Z9RR3iZnzrwBsQ3Uw==","1144":"IJvnG4NtTpqa42PMVI3eYA==","1145":"p7H+nT09SkyHyt0fTpG7DQ==","1146":"ZwVoL+doSGOhtdnZrzsFkQ==","1147":"liRyOhcBTpiaNKyV7QU5pg==","1148":"LyUud2CgTEqy0En0PZKy1Q==","1149":"MqBYK7SgRH26jGGiODN7ew==","1150":"sPnufEv/QtWmw6+K5Vbuzw==","1151":"PhAXJeG6Td2m4ybvdqcKbQ=="};
+
+    function toastEventReportUrl(eventCard,eventDate){
+      const card=String(eventCard||"").trim();
+      const toastId=toastEventIds[card];
+      const date=parseEventDate(eventDate);
+      if(!toastId||!date)return null;
+
+      const yyyy=String(date.getFullYear());
+      const mm=String(date.getMonth()+1).padStart(2,"0");
+      const dd=String(date.getDate()).padStart(2,"0");
+      const reportDate=yyyy+mm+dd;
+
+      return "https://www.toasttab.com/restaurants/admin/reports/sales/sales-summary"+
+        "?employees="+encodeURIComponent(toastId)+
+        "&startDate="+reportDate+
+        "&endDate="+reportDate+
+        "&locations=FvXo0LDEQMCc%2BUtBtxDWLQ%3D%3D";
     }
 
     function extractFullEventTitle(lines){
@@ -1830,8 +1851,25 @@
 
       const kicker=document.createElement("div");
       kicker.className="event-kicker";
-      const left=document.createElement("span");
-      left.textContent=p.eventCard?"Event "+p.eventCard:"Event "+String(index).padStart(2,"0");
+
+      const eventLabel=p.eventCard?"Event "+p.eventCard:"Event "+String(index).padStart(2,"0");
+      const toastEventHref=toastEventReportUrl(p.eventCard,p.date);
+      let left;
+
+      if(toastEventHref){
+        left=document.createElement("a");
+        left.className="event-toast-link";
+        left.href=toastEventHref;
+        left.target="_blank";
+        left.rel="noopener noreferrer";
+        left.textContent=eventLabel;
+        left.title="Open this event in Toast";
+        left.addEventListener("click",(event)=>event.stopPropagation());
+      }else{
+        left=document.createElement("span");
+        left.textContent=eventLabel;
+      }
+
       const right=document.createElement("span");
       right.textContent=group.pdf.numPages+(group.pdf.numPages===1?" page":" pages");
       kicker.append(left,right);
