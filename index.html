@@ -590,6 +590,10 @@
     }
 
     function detectEventTags(lines,text){
+      if(isZeroPlayItForwardEvent(lines,text)){
+        return["Play It Forward"];
+      }
+
       if(/\bfield\s*trip\b/i.test(text)){
         return["Field Trip"];
       }
