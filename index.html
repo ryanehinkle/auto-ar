@@ -2970,7 +2970,13 @@
           moneyCents(actual)-moneyCents(base)
         );
 
-        if(moneyCents(additional)!==0){
+        const additionalCents=moneyCents(additional);
+
+        // A +$0.01 Admin Fee difference is treated as Toast/contract rounding,
+        // not real additional revenue.
+        if(label==="Admin Fee"&&additionalCents===1)continue;
+
+        if(additionalCents!==0){
           items.push({label,actual,contracted:base,additional});
         }
       }
