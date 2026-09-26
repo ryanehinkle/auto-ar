@@ -1578,6 +1578,16 @@
           showNoToastData(group);
         }
 
+        // After replacing an event PDF, keep the Toast paste action compact
+        // like the other completed cards instead of showing the large paste box.
+        if(
+          group.ui &&
+          !group.parsed.tags.includes("Play It Forward")
+        ){
+          group.ui.pasteZone.style.display="none";
+          group.ui.replaceButton.classList.add("visible");
+        }
+
         updateEventsProgress();
         updatePortfolioSales();
       }catch(error){
