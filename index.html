@@ -2962,6 +2962,8 @@
 
         const totalLabel="TOTAL AR: ";
         const green=rgb(0.10,0.44,0.22);
+        const red=rgb(0.70,0.16,0.16);
+        const totalAccent=comparison.total<0?red:green;
         const black=rgb(0.10,0.10,0.12);
         const totalSize=11.4;
         const totalLabelGap=4;
@@ -2987,7 +2989,7 @@
             y:totalY,
             size:totalSize,
             font:bold,
-            color:green
+            color:totalAccent
           });
 
           firstPage.drawText(formulaText,{
@@ -3003,7 +3005,7 @@
             y:totalY,
             size:totalSize,
             font:bold,
-            color:green
+            color:totalAccent
           });
         }else{
           const resultText=formatMoney(comparison.total);
@@ -3017,7 +3019,7 @@
             y:totalY,
             size:totalSize,
             font:bold,
-            color:green
+            color:totalAccent
           });
 
           firstPage.drawText(resultText,{
@@ -3025,7 +3027,7 @@
             y:totalY,
             size:totalSize,
             font:bold,
-            color:green
+            color:totalAccent
           });
         }
       }
