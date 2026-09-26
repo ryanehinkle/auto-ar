@@ -882,6 +882,10 @@
       );
     }
 
+    function isCoachInstructionText(text){
+      return /\bcoach\b|\binstruction\b|\binstructional\b/i.test(String(text||""));
+    }
+
     function extractFinancials(lines,tags=[]){
       const categories={
         Food:0,
@@ -893,6 +897,7 @@
         "Equipment Rental":0,
         "Space Rental":0,
         "Digital Media":0,
+        Coach:0,
         "F&B Minimum":0,
         "Other Fees":0
       };
@@ -1197,6 +1202,35 @@
         }
       }
 
+      let coachTotal=0;
+
+      for(const item of lineItems){
+        if(item.section!=="Equipment Rental")continue;
+        if(!isCoachInstructionText(item.line))continue;
+
+        const amount=
+          item.printedTotal!==null
+            ? Math.max(0,Number(item.printedTotal)||0)
+            : Math.max(0,Number(item.computedTotal)||0);
+
+        coachTotal+=amount;
+      }
+
+      if(coachTotal>0.004){
+        categories.Coach+=coachTotal;
+        detected.Coach=true;
+
+        categories["Equipment Rental"]=Math.max(
+          0,
+          Number(categories["Equipment Rental"]||0)-coachTotal
+        );
+
+        if(categories["Equipment Rental"]<0.005){
+          categories["Equipment Rental"]=0;
+          delete detected["Equipment Rental"];
+        }
+      }
+
       const flexBuckets=getFlexBeverageBuckets(lineItems,lines,tags);
 
       if(flexBuckets){
@@ -1383,7 +1417,7 @@
       const financeGrid=document.createElement("div");
       financeGrid.className="finance-grid";
 
-      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor","Equipment Rental","Space Rental","Digital Media","Other Fees"];
+      const revenueOrder=["Food","Beverages","NA","F&B Minimum","Gameplay","Coach","Retail","Labor","Equipment Rental","Space Rental","Digital Media","Other Fees"];
       const revenueItems=revenueOrder
         .map(label=>({
           label,
@@ -1617,7 +1651,8 @@
       if(x==="marketing partnerships"||x==="marketing partnership"||x==="digital media")return"Digital Media";
       if(x==="events fees"||x==="event fees"||x==="fees"||x==="fee")return"Fees";
       if(x==="retail")return"Retail";
-      if(x==="club rental"||x==="coach")return"Other Fees";
+      if(x==="coach"||x==="instruction"||x==="instructional")return"Coach";
+      if(x==="club rental")return"Other Fees";
 
       return"Other Fees";
     }
@@ -1634,6 +1669,7 @@
         "Equipment Rental":0,
         "Space Rental":0,
         "Digital Media":0,
+        Coach:0,
         Fees:0,
         "Other Fees":0,
         "Voluntary Tip":0,
@@ -2114,8 +2150,8 @@
           totals.LBW+=netSales;
           recognized.add("LBW");
         }else if(hit.label==="Coach"){
-          totals["Other Fees"]+=netSales;
-          recognized.add("Other Fees");
+          totals.Coach+=netSales;
+          recognized.add("Coach");
         }else{
           totals[hit.label]+=netSales;
           recognized.add(hit.label);
@@ -2175,7 +2211,7 @@
       if(totalNetSales!==null&&hasAllAlcoholLabels(source)){
         const nonAlcoholLabels=[
           "Food","Beverages","NA","Gameplay","Retail","Labor",
-          "Equipment Rental","Space Rental","Digital Media",
+          "Equipment Rental","Space Rental","Digital Media","Coach",
           "Fees","Other Fees","Voluntary Tip","Service Charge","Admin Fee"
         ];
 
@@ -2195,7 +2231,7 @@
       if(totalNetSales===null&&recognized.size){
         const reconstructLabels=[
           "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
-          "Equipment Rental","Space Rental","Digital Media",
+          "Equipment Rental","Space Rental","Digital Media","Coach",
           "Fees","Other Fees","Voluntary Tip","Service Charge","Admin Fee"
         ];
 
@@ -2282,6 +2318,7 @@
         "Equipment Rental":Number(financial.categories["Equipment Rental"]||0),
         "Space Rental":Number(financial.categories["Space Rental"]||0),
         "Digital Media":Number(financial.categories["Digital Media"]||0),
+        Coach:Number(financial.categories.Coach||0),
         "Other Fees":Number(financial.categories["Other Fees"]||0),
         "Voluntary Tip":0,
         "Admin Fee":Number(financial.adminFee||0)
@@ -2291,7 +2328,7 @@
       const recognized=toast.__recognized instanceof Set?toast.__recognized:new Set();
       const expectedLabels=[
         "Food","Beverages","LBW","NA","Gameplay","Retail","Labor",
-        "Equipment Rental","Space Rental","Digital Media",
+        "Equipment Rental","Space Rental","Digital Media","Coach",
         "Other Fees","Voluntary Tip","Admin Fee"
       ];
 
@@ -2342,7 +2379,7 @@
       // rather than a separately parsed hidden amount.
       const contractedCategorySubtotal=[
         "Food","Beverages","NA","F&B Minimum","Gameplay","Retail","Labor",
-        "Equipment Rental","Space Rental","Digital Media","Other Fees"
+        "Equipment Rental","Space Rental","Digital Media","Coach","Other Fees"
       ].reduce(
         (sum,label)=>sum+Number(financial.categories[label]||0),
         0
@@ -2617,6 +2654,7 @@
         "Equipment Rental":"EQUIPMENT",
         "Space Rental":"SPACE",
         "Digital Media":"DIGITAL MEDIA",
+        Coach:"COACH",
         "Unused F&B":"UNUSED F&B",
         Other:"OTHER",
         "Other Fees":"OTHER",
@@ -3023,6 +3061,7 @@
         "Equipment Rental":"equipment-rental",
         "Space Rental":"space-rental",
         "Digital Media":"digital-media",
+        Coach:"other",
         "Unused F&B":"unused-fb",
         Other:"other",
         "Other Fees":"other-fees",
